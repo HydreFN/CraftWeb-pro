@@ -1,0 +1,6 @@
+# Page dédiée de confirmation de commande (retour Stripe)
+/commande     /commande.html   200
+/commande/    /commande.html   200
+
+# Fallback type SPA — les fichiers statiques existants restent prioritaires
+/*            /index.html      200
