@@ -1,0 +1,11 @@
+# Configuration Netlify pour CraftWeb (site statique + fonction serverless)
+
+[build]
+  # Le site est statique : on publie le dossier tel quel (aucune étape de build)
+  publish = "."
+  # Emplacement des Netlify Functions
+  functions = "netlify/functions"
+
+[functions]
+  # Runtime Node pour les fonctions .mjs (ESM)
+  node_bundler = "esbuild"
