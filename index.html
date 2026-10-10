@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>CraftWeb — Studio Digital</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fff; overscroll-behavior: none; }
+    input, select, textarea { font-size: 16px !important; }
+    button { font-family: inherit; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .cw-load { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: #64748B; }
+    .cw-spin { width: 42px; height: 42px; border: 3px solid #E2E8F0; border-top-color: #2563EB; border-radius: 50%; margin: 0 auto 16px; animation: spin .7s linear infinite; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 5px; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="cw-load"><div style="text-align:center"><div class="cw-spin"></div><p style="font-size:14px">Chargement de CraftWeb...</p></div></div>
+  </div>
+
+  <script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIGURATION FIREBASE — ACTIVE
+   Temps réel multi-appareils + connexion Google + sauvegarde cloud.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const FIREBASE_CONFIG = {
+  apiKey:        "AIzaSyCfvlxWr3Y45tIYxD4fNwWavG44QjBD87w",
+  authDomain:    "craftweb-428b0.firebaseapp.com",
+  databaseURL:   "https://craftweb-428b0-default-rtdb.firebaseio.com",
+  projectId:     "craftweb-428b0",
+  appId:         "1:60447409637:web:e2c900efd8bfad25951b0c"
+};
+
+var CW_BACKEND = { firebase: false };
+var fbAuth = null, fbDB = null, googleProvider = null;
+var CW_BC = null;
+
+(function initBackend() {
+  var ok = FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.databaseURL;
+  if (ok && window.firebase) {
+    try {
+      if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      fbAuth = firebase.auth();
+      fbDB = firebase.database();
+      googleProvider = new firebase.auth.GoogleAuthProvider();
+      try { fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e) {}
+      CW_BACKEND.firebase = true;
+      console.log("[CraftWeb] Firebase actif — temps réel + Google + cloud");
+    } catch (e) {
+      console.warn("[CraftWeb] Erreur Firebase, mode local:", e.message);
+    }
+  } else {
+    console.log("[CraftWeb] Mode local (localStorage).");
+  }
+})();
+
+  </script>
+
+  <script>
+    var Recharts = window.Recharts || {};
+    try {
+
+
+
+"use strict";
+// ─────────────────────────────────────────────────────────────────────────────
+// CRAFTWEB — Application complète (site client + admin)
+// ─────────────────────────────────────────────────────────────────────────────
+// ── CONSTANTES ────────────────────────────────────────────────────────────────
+const STORE_KEY = "cw-v1";
+const DATA_VERSION = "cw-2025-v1";
+const ADMIN_CREDS = { email: "admin@craftweb.pro", password: "CraftWeb2025" };
+const SERVICES = [
+    { id: "vitrine", name: "Site vitrine Pro", price: 1290, delivery: 7, popular: false,
+        desc: "Un site professionnel, moderne et responsive pour développer votre présence en ligne.",
+        features: ["Jusqu'à 5 pages", "Design personnalisé", "Version mobile et ordinateur", "Présentation de l'entreprise et de ses services", "Galerie photos", "Formulaire de contact", "Liens vers les réseaux sociaux", "Optimisation SEO de base", "Deux séries de modifications incluses", "Mise en ligne du site"],
+        exclusions: [] },
+    { id: "ecommerce", name: "Boutique e-commerce", price: 2790, delivery: 21, popular: true,
+        desc: "Une boutique en ligne complète pour présenter et vendre vos produits.",
+        features: ["Jusqu'à 5 pages", "Design professionnel et responsive", "Ajout initial de 10 produits", "Fiches produits", "Panier d'achat", "Intégration d'une solution de paiement", "Configuration des informations de livraison", "Formulaire de contact", "Optimisation SEO de base", "Deux séries de modifications incluses", "Mise en ligne du site"],
+        exclusions: ["Abonnements aux plateformes", "Frais de transaction", "Nom de domaine", "Hébergement"] },
+    { id: "appweb", name: "Application web essentielle", price: 3490, delivery: 30, popular: false,
+        desc: "Une application web professionnelle pour simplifier la gestion de votre activité.",
+        features: ["Jusqu'à 3 écrans principaux", "Tableau de bord personnalisé", "Authentification des utilisateurs", "Un seul type de compte utilisateur", "Une fonctionnalité métier principale au choix", "Interface adaptée aux mobiles", "Tests fonctionnels", "Deux séries de modifications incluses", "Mise en ligne"],
+        exclusions: ["Applications mobiles natives", "Fonctionnalités complexes", "Intégrations externes payantes", "Systèmes multi-entreprises"],
+        appTypes: ["Réservation simple", "Suivi des demandes", "Gestion de fiches"] },
+    { id: "portfolio", name: "Site portfolio", price: 690, delivery: 5, popular: false,
+        desc: "Un portfolio élégant pour présenter vos réalisations et développer votre visibilité.",
+        features: ["Une page complète", "Design personnalisé", "Galerie de projets", "Présentation du créateur", "Formulaire de contact", "Liens vers les réseaux sociaux", "Version mobile et ordinateur", "Deux séries de modifications incluses", "Mise en ligne"],
+        exclusions: [] },
+];
+const STATUSES = ["Nouvelle", "En attente", "En cours", "Terminée", "Livrée", "Annulée"];
+const STATUS_COLOR = {
+    "Nouvelle": "#2563EB", "En attente": "#D97706", "En cours": "#7C3AED",
+    "Terminée": "#0D9488", "Livrée": "#16A34A", "Annulée": "#DC2626"
+};
+const STATUS_BG = {
+    "Nouvelle": "#EFF6FF", "En attente": "#FFFBEB", "En cours": "#F5F3FF",
+    "Terminée": "#F0FDFA", "Livrée": "#F0FDF4", "Annulée": "#FEF2F2"
+};
+const SVC_COLOR = { vitrine: "#2563EB", ecommerce: "#0284C7", appweb: "#1D4ED8", portfolio: "#0369A1" };
+const FAQ_ITEMS = [
+    { q: "Combien de temps prend la création ?",
+        a: "Un site vitrine est livré sous 7 jours, un e-commerce sous 3 semaines, une application sous 4 à 6 semaines." },
+    { q: "Que se passe-t-il après ma commande ?",
+        a: "Vous recevez une confirmation immédiate. Notre équipe vous contacte ensuite via la messagerie pour cadrer le projet." },
+    { q: "Puis-je suivre l'avancement de mon projet ?",
+        a: "Oui — chaque commande a un statut visible dans votre espace client en temps réel." },
+    { q: "Le prix affiché est-il définitif ?",
+        a: "Il correspond à la prestation de base. Si votre projet demande des options supplémentaires, un devis détaillé vous est proposé." },
+    { q: "Comment échanger avec l'équipe ?",
+        a: "Via la messagerie intégrée dans votre espace client. L'équipe répond sous 24h ouvrables." },
+];
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const uid = () => Math.random().toString(36).slice(2, 10);
+const oRef = () => "CMD-" + Math.random().toString(36).slice(2, 7).toUpperCase();
+const fmtD = (iso) => iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const fmtM = (n) => new Intl.NumberFormat("fr-FR").format(n || 0) + " €";
+const okEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+const ini = (n) => (n || "?").trim().split(/\s+/).map(w => w[0] || "").slice(0, 2).join("").toUpperCase();
+const tAgo = (iso) => {
+    const s = (Date.now() - new Date(iso)) / 1000;
+    if (s < 60)
+        return "à l'instant";
+    const m = s / 60;
+    if (m < 60)
+        return "il y a " + ~~m + "min";
+    const h = m / 60;
+    if (h < 24)
+        return "il y a " + ~~h + "h";
+    return "il y a " + ~~(h / 24) + "j";
+};
+const AV_COLORS = ["#2563EB", "#0284C7", "#1D4ED8", "#0369A1", "#0891B2"];
+const avColor = (n) => AV_COLORS[[...(n || "?")].reduce((a, c) => a + c.charCodeAt(0), 0) % AV_COLORS.length];
+// ── SEED (vide — seules les vraies données apparaissent) ─────────────────────
+const mkSeed = () => ({ users: [], orders: [], messages: [], reviews: [], notifs: [] });
+// ── CONTEXT ───────────────────────────────────────────────────────────────────
+const DataCtx = React.createContext(null);
+const useData = () => React.useContext(DataCtx);
+// Traduction des erreurs Firebase
+function fbErr(e) {
+    const c = (e && e.code) || "";
+    if (c.includes("email-already-in-use"))
+        return "Un compte existe déjà avec cet email.";
+    if (c.includes("invalid-email"))
+        return "Email invalide.";
+    if (c.includes("weak-password"))
+        return "Mot de passe trop faible (6 caractères min).";
+    if (c.includes("user-not-found") || c.includes("wrong-password") || c.includes("invalid-credential"))
+        return "Email ou mot de passe incorrect.";
+    if (c.includes("popup-closed"))
+        return "Connexion Google annulée.";
+    if (c.includes("popup-blocked"))
+        return "Popup bloquée par le navigateur.";
+    if (c.includes("network"))
+        return "Erreur réseau. Vérifiez votre connexion.";
+    return (e && e.message) ? e.message : "Une erreur est survenue.";
+}
+function DataProvider({ children }) {
+    const [users, setUsers] = React.useState([]);
+    const [orders, setOrders] = React.useState([]);
+    const [messages, setMessages] = React.useState([]);
+    const [reviews, setReviews] = React.useState([]);
+    const [notifs, setNotifs] = React.useState([]);
+    const [me, setMe] = React.useState(null);
+    const [toasts, setToasts] = React.useState([]);
+    const [dlg, setDlg] = React.useState(null);
+    const [notifPanel, setNotifPanel] = React.useState(null);
+    const [ready, setReady] = React.useState(false);
+    const echo = React.useRef(false);
+    const stateRef = React.useRef({ users: [], orders: [], messages: [], reviews: [], notifs: [] });
+    const meRef = React.useRef(null);
+    React.useEffect(() => { stateRef.current = { users, orders, messages, reviews, notifs }; }, [users, orders, messages, reviews, notifs]);
+    React.useEffect(() => { meRef.current = me; }, [me]);
+    // Applique des données entrantes (depuis Firebase ou local) sans redéclencher la sauvegarde
+    const applyData = React.useCallback((d) => {
+        if (!d)
+            return;
+        echo.current = true;
+        setUsers(Array.isArray(d.users) ? d.users : []);
+        setOrders(Array.isArray(d.orders) ? d.orders : []);
+        setMessages(Array.isArray(d.messages) ? d.messages : []);
+        setReviews(Array.isArray(d.reviews) ? d.reviews : []);
+        setNotifs(Array.isArray(d.notifs) ? d.notifs : []);
+        setTimeout(() => { echo.current = false; }, 60);
+    }, []);
+    // ── INITIALISATION ──
+    React.useEffect(() => {
+        if (CW_BACKEND.firebase) {
+            // --- Mode Firebase ---
+            const ref = fbDB.ref("appdata");
+            ref.on("value", (snap) => { const v = snap.val(); if (v)
+                applyData(v); });
+            ref.once("value").then(() => setReady(true)).catch(() => setReady(true));
+            const unsub = fbAuth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    let snap;
+                    try {
+                        snap = await fbDB.ref("appdata/users").once("value");
+                    }
+                    catch (e) {
+                        snap = null;
+                    }
+                    const arr = snap && snap.val() ? snap.val() : [];
+                    const list = Array.isArray(arr) ? arr : Object.values(arr);
+                    let prof = list.find((x) => x && x.id === user.uid);
+                    if (!prof) {
+                        const dn = (user.displayName || "").trim().split(/\s+/);
+                        prof = {
+                            id: user.uid, email: user.email || "",
+                            firstName: dn[0] || "Client", lastName: dn.slice(1).join(" ") || "",
+                            phone: "", role: "client", createdAt: new Date().toISOString(),
+                            photo: user.photoURL || null
+                        };
+                        setUsers((p) => [...p.filter((x) => x.id !== prof.id), prof]);
+                    }
+                    setMe(prof);
+                }
+                else {
+                    setMe(null);
+                }
+            });
+            return () => { ref.off(); unsub(); };
+        }
+        else {
+            // --- Mode local (localStorage + BroadcastChannel) ---
+            try {
+                const raw = localStorage.getItem("cw-data");
+                if (raw)
+                    applyData(JSON.parse(raw));
+                const sess = localStorage.getItem("cw-session");
+                if (raw && sess) {
+                    const d = JSON.parse(raw);
+                    const u = (d.users || []).find((x) => x.id === sess);
+                    if (u)
+                        setMe(u);
+                }
+            }
+            catch (e) { }
+            setReady(true);
+            try {
+                CW_BC = new BroadcastChannel("craftweb-sync");
+                CW_BC.onmessage = (e) => { if (e.data)
+                    applyData(e.data); };
+            }
+            catch (e) {
+                CW_BC = null;
+            }
+        }
+    }, []);
+    // ── SAUVEGARDE (à chaque changement, hors echo) ──
+    React.useEffect(() => {
+        if (!ready || echo.current)
+            return;
+        const data = { users, orders, messages, reviews, notifs };
+        if (CW_BACKEND.firebase) {
+            fbDB.ref("appdata").set(data).catch(() => { });
+        }
+        else {
+            try {
+                localStorage.setItem("cw-data", JSON.stringify(data));
+            }
+            catch (e) { }
+            if (CW_BC) {
+                try {
+                    CW_BC.postMessage(data);
+                }
+                catch (e) { }
+            }
+        }
+    }, [users, orders, messages, reviews, notifs, ready]);
+    // ── TOAST / DIALOG ──
+    const toast = (msg, type = "ok") => {
+        const id = uid();
+        setToasts((t) => [...t, { id, msg, type }]);
+        setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000);
+    };
+    const confirm = (cfg) => setDlg(cfg);
+    const addN = (n) => setNotifs((p) => [Object.assign({ id: uid(), read: false, createdAt: new Date().toISOString() }, n), ...p]);
+    // ── AUTH ──
+    const register = async (d) => {
+        if (CW_BACKEND.firebase) {
+            try {
+                const cred = await fbAuth.createUserWithEmailAndPassword(d.email, d.password);
+                const u = cred.user;
+                const prof = { id: u.uid, email: d.email, firstName: d.firstName, lastName: d.lastName,
+                    phone: d.phone || "", role: "client", createdAt: new Date().toISOString(), photo: null };
+                setUsers((p) => [...p.filter((x) => x.id !== prof.id), prof]);
+                setMe(prof);
+                return { ok: true, user: prof };
+            }
+            catch (e) {
+                return { ok: false, err: fbErr(e) };
+            }
+        }
+        else {
+            if (stateRef.current.users.some((x) => x.email.toLowerCase() === d.email.toLowerCase()))
+                return { ok: false, err: "Un compte existe déjà avec cet email." };
+            const u = Object.assign({ id: uid(), role: "client", createdAt: new Date().toISOString(), photo: null }, d);
+            setUsers((p) => [...p, u]);
+            setMe(u);
+            try {
+                localStorage.setItem("cw-session", u.id);
+            }
+            catch (e) { }
+            return { ok: true, user: u };
+        }
+    };
+    const login = async (email, pw) => {
+        if (CW_BACKEND.firebase) {
+            try {
+                await fbAuth.signInWithEmailAndPassword(email, pw);
+                return { ok: true };
+            }
+            catch (e) {
+                return { ok: false, err: fbErr(e) };
+            }
+        }
+        else {
+            const u = stateRef.current.users.find((x) => x.email.toLowerCase() === email.toLowerCase() && x.password === pw);
+            if (!u)
+                return { ok: false, err: "Email ou mot de passe incorrect." };
+            setMe(u);
+            try {
+                localStorage.setItem("cw-session", u.id);
+            }
+            catch (e) { }
+            return { ok: true, user: u };
+        }
+    };
+    const loginSocial = async (which) => {
+        if (!CW_BACKEND.firebase)
+            return { ok: false, err: "La connexion " + (which === "apple" ? "Apple" : "Google") + " nécessite la configuration Firebase." };
+        try {
+            let provider;
+            if (which === "apple") {
+                provider = new firebase.auth.OAuthProvider("apple.com");
+                provider.addScope("email");
+                provider.addScope("name");
+            }
+            else {
+                provider = googleProvider;
+            }
+            const cred = await fbAuth.signInWithPopup(provider);
+            const u = cred.user;
+            const exists = stateRef.current.users.find((x) => x.id === u.uid);
+            if (!exists) {
+                const dn = (u.displayName || "").trim().split(/\s+/);
+                const prof = { id: u.uid, email: u.email || "", firstName: dn[0] || "Client",
+                    lastName: dn.slice(1).join(" ") || "", phone: "", role: "client",
+                    createdAt: new Date().toISOString(), photo: u.photoURL || null };
+                setUsers((p) => [...p.filter((x) => x.id !== prof.id), prof]);
+                setMe(prof);
+            }
+            return { ok: true };
+        }
+        catch (e) {
+            return { ok: false, err: fbErr(e) };
+        }
+    };
+    const loginGoogle = () => loginSocial("google");
+    const loginApple = () => loginSocial("apple");
+    const logout = async () => {
+        if (CW_BACKEND.firebase) {
+            try {
+                await fbAuth.signOut();
+            }
+            catch (e) { }
+        }
+        else {
+            try {
+                localStorage.removeItem("cw-session");
+            }
+            catch (e) { }
+        }
+        setMe(null);
+    };
+    const updateMe = (patch) => {
+        if (!meRef.current)
+            return;
+        const id = meRef.current.id;
+        setUsers((p) => p.map((u) => u.id === id ? Object.assign(Object.assign({}, u), patch) : u));
+        setMe((c) => (Object.assign(Object.assign({}, c), patch)));
+    };
+    // ── COMMANDES ──
+    const createOrder = (d) => {
+        const svc = SERVICES.find((x) => x.id === d.serviceId);
+        const o = {
+            id: uid(), ref: oRef(), status: "Nouvelle",
+            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+            serviceId: d.serviceId, serviceName: svc ? svc.name : "", price: svc ? svc.price : 0,
+            userId: d.userId || (meRef.current ? meRef.current.id : null),
+            clientName: (d.firstName + " " + d.lastName).trim(),
+            firstName: d.firstName, lastName: d.lastName, email: d.email, phone: d.phone,
+            description: d.description || "", files: d.files || []
+        };
+        setOrders((p) => [o, ...p]);
+        addN({ audience: "admin", type: "order", text: "Nouvelle commande — " + o.serviceName + " · " + o.clientName });
+        return o;
+    };
+    const updateOrder = (id, patch) => setOrders((p) => p.map((o) => o.id === id ? Object.assign(Object.assign(Object.assign({}, o), patch), { updatedAt: new Date().toISOString() }) : o));
+    const updateStatus = (id, status) => {
+        const o = stateRef.current.orders.find((x) => x.id === id);
+        setOrders((p) => p.map((x) => x.id === id ? Object.assign(Object.assign({}, x), { status, updatedAt: new Date().toISOString() }) : x));
+        if (o && o.userId)
+            addN({ audience: o.userId, type: "status", text: "Votre commande " + o.serviceName + " est maintenant : " + status });
+    };
+    const cancelOrder = (id) => updateStatus(id, "Annulée");
+    const deleteOrder = (id) => { setOrders((p) => p.filter((o) => o.id !== id)); toast("Commande supprimée."); };
+    // ── UTILISATEURS ──
+    const addUser = (d) => setUsers((p) => [...p, Object.assign({ id: uid(), role: "client", createdAt: new Date().toISOString() }, d)]);
+    const updateUser = (id, patch) => setUsers((p) => p.map((u) => u.id === id ? Object.assign(Object.assign({}, u), patch) : u));
+    const deleteUser = (id) => { setUsers((p) => p.filter((u) => u.id !== id)); toast("Utilisateur supprimé."); };
+    // ── MESSAGES ──
+    const sendMsg = (userId, sender, text) => {
+        if (!text || !text.trim())
+            return;
+        const msg = { id: uid(), userId, sender, text: text.trim(), createdAt: new Date().toISOString(), read: false };
+        setMessages((p) => [...p, msg]);
+        if (sender === "client")
+            addN({ audience: "admin", type: "message", text: "Nouveau message d'un client" });
+        else
+            addN({ audience: userId, type: "message", text: "Nouveau message de l'équipe CraftWeb" });
+    };
+    const markRead = (userId, side) => setMessages((p) => p.map((m) => m.userId === userId && m.sender !== side ? Object.assign(Object.assign({}, m), { read: true }) : m));
+    const markConvRead = (userId) => setMessages((p) => p.map((m) => m.userId === userId && m.sender === "client" ? Object.assign(Object.assign({}, m), { read: true }) : m));
+    // ── AVIS ──
+    const addReview = (d) => setReviews((p) => [Object.assign({ id: uid(), approved: false, createdAt: new Date().toISOString() }, d), ...p]);
+    const approveReview = (id, v) => setReviews((p) => p.map((r) => r.id === id ? Object.assign(Object.assign({}, r), { approved: v }) : r));
+    const deleteReview = (id) => { setReviews((p) => p.filter((r) => r.id !== id)); toast("Avis supprimé."); };
+    // ── NOTIFS ──
+    const markN = (id) => setNotifs((p) => p.map((n) => n.id === id ? Object.assign(Object.assign({}, n), { read: true }) : n));
+    const markAllN = (aud) => setNotifs((p) => p.map((n) => n.audience === aud ? Object.assign(Object.assign({}, n), { read: true }) : n));
+    const val = {
+        users, orders, messages, reviews, notifs, me, ready,
+        backendMode: CW_BACKEND.firebase ? "firebase" : "local",
+        toast, confirm,
+        login, register, loginGoogle, loginApple, logout, updateMe,
+        createOrder, updateOrder, updateStatus, cancelOrder, deleteOrder,
+        addUser, updateUser, deleteUser,
+        sendMsg, markRead, markConvRead,
+        addReview, approveReview, deleteReview,
+        markN, markAllN,
+        openNotifs: (aud) => setNotifPanel(aud)
+    };
+    return React.createElement(DataCtx.Provider, { value: val }, children, 
+    // Toasts
+    React.createElement("div", { className: "fixed bottom-4 right-4 z-50 flex flex-col gap-2 items-end pointer-events-none" }, toasts.map((t) => React.createElement("div", { key: t.id, className: "flex items-center gap-2 bg-slate-900 text-white rounded-xl px-4 py-2.5 shadow-xl text-sm pointer-events-auto" }, t.type === "ok" ? React.createElement(CheckCircleIcon, { size: 14, className: "text-emerald-400" }) : React.createElement(XCircleIcon, { size: 14, className: "text-red-400" }), t.msg))), 
+    // Panneau notifications
+    notifPanel && React.createElement(React.Fragment, null, React.createElement("div", { onClick: () => setNotifPanel(null), style: { position: "fixed", inset: 0, zIndex: 9990, background: "rgba(0,0,0,0.35)", cursor: "pointer" } }), React.createElement("div", { style: { position: "fixed", top: 0, right: 0, height: "100%", width: "100%", maxWidth: 380, background: "#fff", zIndex: 9999, display: "flex", flexDirection: "column", boxShadow: "-4px 0 32px rgba(0,0,0,0.15)" } }, React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: "1px solid #F1F5F9" } }, React.createElement("span", { style: { fontWeight: 700, fontSize: 17, color: "#0F172A" } }, "Notifications"), React.createElement("button", { onClick: () => setNotifPanel(null), style: { padding: 8, borderRadius: 8, border: "none", background: "#F8FAFC", cursor: "pointer", display: "flex", alignItems: "center" } }, React.createElement(XIcon, { size: 18, color: "#64748B" }))), React.createElement("div", { style: { flex: 1, overflowY: "auto" } }, notifs.filter((n) => n.audience === notifPanel).length === 0
+        ? React.createElement("p", { style: { padding: "32px 20px", textAlign: "center", fontSize: 14, color: "#94A3B8" } }, "Aucune notification")
+        : notifs.filter((n) => n.audience === notifPanel).map((n) => React.createElement("button", { key: n.id, onClick: () => markN(n.id), style: { width: "100%", textAlign: "left", padding: "16px 20px", display: "flex", gap: 12, borderBottom: "1px solid #F8FAFC", background: n.read ? "#fff" : "#EFF6FF", border: "none", borderBottomStyle: "solid", borderBottomColor: "#F8FAFC", cursor: "pointer" } }, !n.read && React.createElement("span", { style: { marginTop: 6, width: 8, height: 8, borderRadius: "50%", background: "#2563EB", flexShrink: 0, display: "block" } }), React.createElement("div", { style: { marginLeft: n.read ? 20 : 0 } }, React.createElement("p", { style: { fontSize: 14, color: "#1E293B", lineHeight: 1.45, margin: 0 } }, n.text), React.createElement("p", { style: { fontSize: 12, color: "#94A3B8", margin: "4px 0 0" } }, tAgo(n.createdAt)))))), notifs.filter((n) => n.audience === notifPanel && !n.read).length > 0 &&
+        React.createElement("div", { style: { padding: "14px 20px", borderTop: "1px solid #F1F5F9" } }, React.createElement("button", { onClick: () => markAllN(notifPanel), style: { fontSize: 14, fontWeight: 600, color: "#2563EB", background: "none", border: "none", cursor: "pointer" } }, "Tout marquer comme lu")))), 
+    // Dialog
+    dlg && React.createElement("div", { className: "fixed inset-0 z-50 flex items-center justify-center p-4", style: { background: "rgba(0,0,0,.4)" }, onClick: () => setDlg(null) }, React.createElement("div", { className: "bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6", onClick: (e) => e.stopPropagation() }, React.createElement("h3", { className: "text-lg font-bold text-slate-900" }, dlg.title), React.createElement("p", { className: "text-sm text-slate-500 mt-2" }, dlg.msg), React.createElement("div", { className: "flex gap-3 mt-6" }, React.createElement("button", { onClick: () => setDlg(null), className: "flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700" }, "Annuler"), React.createElement("button", { onClick: () => { dlg.onOk(); setDlg(null); }, className: "flex-1 rounded-xl py-2.5 text-sm font-semibold text-white", style: { background: dlg.danger ? "#DC2626" : "#2563EB" } }, dlg.okLabel || "Confirmer")))));
+}
+// ── ICÔNES SVG INTÉGRÉES (aucune dépendance externe → toujours visibles) ─────
+function svgIcon(children) {
+    return function (props) {
+        props = props || {};
+        var size = props.size || 24;
+        var style = props.style || {};
+        var stroke = props.color || style.color || "currentColor";
+        var fill = props.fill || style.fill || "none";
+        return React.createElement("svg", {
+            xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24",
+            fill: fill, stroke: stroke, strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round",
+            className: props.className || "", style: style
+        }, children.map(function (c, i) { return React.createElement(c[0], Object.assign({ key: i }, c[1])); }));
+    };
+}
+const MenuIcon = svgIcon([["line", { x1: 4, x2: 20, y1: 6, y2: 6 }], ["line", { x1: 4, x2: 20, y1: 12, y2: 12 }], ["line", { x1: 4, x2: 20, y1: 18, y2: 18 }]]);
+const XIcon = svgIcon([["path", { d: "M18 6 6 18" }], ["path", { d: "m6 6 12 12" }]]);
+const CartIcon = svgIcon([["circle", { cx: 8, cy: 21, r: 1 }], ["circle", { cx: 19, cy: 21, r: 1 }], ["path", { d: "M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" }]]);
+const GlobeIcon = svgIcon([["circle", { cx: 12, cy: 12, r: 10 }], ["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }], ["path", { d: "M2 12h20" }]]);
+const CheckIcon = svgIcon([["path", { d: "M20 6 9 17l-5-5" }]]);
+const ChevronDownIcon = svgIcon([["path", { d: "m6 9 6 6 6-6" }]]);
+const ArrowRightIcon = svgIcon([["path", { d: "M5 12h14" }], ["path", { d: "m12 5 7 7-7 7" }]]);
+const ArrowLeftIcon = svgIcon([["path", { d: "m12 19-7-7 7-7" }], ["path", { d: "M19 12H5" }]]);
+const StarIcon = svgIcon([["polygon", { points: "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26" }]]);
+const MailIcon = svgIcon([["rect", { width: 20, height: 16, x: 2, y: 4, rx: 2 }], ["path", { d: "m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" }]]);
+const SendIcon = svgIcon([["path", { d: "M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" }], ["path", { d: "m21.854 2.147-10.94 10.939" }]]);
+const BellIcon = svgIcon([["path", { d: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" }], ["path", { d: "M10.3 21a1.94 1.94 0 0 0 3.4 0" }]]);
+const UserIcon = svgIcon([["path", { d: "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" }], ["circle", { cx: 12, cy: 7, r: 4 }]]);
+const LogOutIcon = svgIcon([["path", { d: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" }], ["polyline", { points: "16 17 21 12 16 7" }], ["line", { x1: 21, x2: 9, y1: 12, y2: 12 }]]);
+const DashboardIcon = svgIcon([["rect", { width: 7, height: 9, x: 3, y: 3, rx: 1 }], ["rect", { width: 7, height: 5, x: 14, y: 3, rx: 1 }], ["rect", { width: 7, height: 9, x: 14, y: 12, rx: 1 }], ["rect", { width: 7, height: 5, x: 3, y: 16, rx: 1 }]]);
+const PackageIcon = svgIcon([["path", { d: "M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" }], ["path", { d: "m3.3 7 8.7 5 8.7-5" }], ["path", { d: "M12 22V12" }]]);
+const MsgIcon = svgIcon([["path", { d: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" }]]);
+const PlusIcon = svgIcon([["path", { d: "M5 12h14" }], ["path", { d: "M12 5v14" }]]);
+const UploadIcon = svgIcon([["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }], ["polyline", { points: "17 8 12 3 7 8" }], ["line", { x1: 12, x2: 12, y1: 3, y2: 15 }]]);
+const ClipIcon = svgIcon([["path", { d: "m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" }]]);
+const CheckCircleIcon = svgIcon([["path", { d: "M22 11.08V12a10 10 0 1 1-5.93-9.14" }], ["polyline", { points: "22 4 12 14.01 9 11.01" }]]);
+const ClockIcon = svgIcon([["circle", { cx: 12, cy: 12, r: 10 }], ["polyline", { points: "12 6 12 12 16 14" }]]);
+const TruckIcon = svgIcon([["path", { d: "M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2" }], ["path", { d: "M15 18H9" }], ["path", { d: "M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14" }], ["circle", { cx: 17, cy: 18, r: 2 }], ["circle", { cx: 7, cy: 18, r: 2 }]]);
+const XCircleIcon = svgIcon([["circle", { cx: 12, cy: 12, r: 10 }], ["path", { d: "m15 9-6 6" }], ["path", { d: "m9 9 6 6" }]]);
+const SparkIcon = svgIcon([["path", { d: "M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z" }]]);
+const ActivityIcon = svgIcon([["path", { d: "M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" }]]);
+const QuoteIcon = svgIcon([["path", { d: "M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z" }], ["path", { d: "M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z" }]]);
+const EuroIcon = svgIcon([["path", { d: "M4 10h12" }], ["path", { d: "M4 14h9" }], ["path", { d: "M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12a7.9 7.9 0 0 0 7.8 8 7.7 7.7 0 0 0 5.2-2" }]]);
+const ShieldIcon = svgIcon([["path", { d: "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" }], ["path", { d: "m9 12 2 2 4-4" }]]);
+const BadgeIcon = svgIcon([["path", { d: "M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" }], ["path", { d: "m9 12 2 2 4-4" }]]);
+const TrendIcon = svgIcon([["polyline", { points: "22 7 13.5 15.5 8.5 10.5 2 17" }], ["polyline", { points: "16 7 22 7 22 13" }]]);
+const PencilIcon = svgIcon([["path", { d: "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" }], ["path", { d: "m15 5 4 4" }]]);
+const TrashIcon = svgIcon([["path", { d: "M3 6h18" }], ["path", { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }], ["line", { x1: 10, x2: 10, y1: 11, y2: 17 }], ["line", { x1: 14, x2: 14, y1: 11, y2: 17 }]]);
+const SearchIcon = svgIcon([["circle", { cx: 11, cy: 11, r: 8 }], ["path", { d: "m21 21-4.3-4.3" }]]);
+const DownloadIcon = svgIcon([["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }], ["polyline", { points: "7 10 12 15 17 10" }], ["line", { x1: 12, x2: 12, y1: 15, y2: 3 }]]);
+const UsersIcon = svgIcon([["path", { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }], ["circle", { cx: 9, cy: 7, r: 4 }], ["path", { d: "M22 21v-2a4 4 0 0 0-3-3.87" }], ["path", { d: "M16 3.13a4 4 0 0 1 0 7.75" }]]);
+const BuildingIcon = svgIcon([["path", { d: "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" }], ["path", { d: "M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" }], ["path", { d: "M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" }], ["path", { d: "M10 6h4" }], ["path", { d: "M10 10h4" }], ["path", { d: "M10 14h4" }], ["path", { d: "M10 18h4" }]]);
+// ── UI PARTAGÉS ───────────────────────────────────────────────────────────────
+const inputCls = (err) => "w-full rounded-xl border px-3.5 py-2.5 text-sm bg-white outline-none transition focus:ring-2 " +
+    (err ? "border-red-300 focus:ring-red-100" : "border-slate-200 focus:ring-blue-200 focus:border-blue-400");
+const BtnP = "inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition cursor-pointer border-none";
+const BtnG = "inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer";
+function CWLogo({ white, sm, onClick }) {
+    const sz = sm ? 28 : 34;
+    return React.createElement("button", {
+        onClick, style: { display: "flex", alignItems: "center", gap: 8, border: "none", background: "none", cursor: onClick ? "pointer" : "default", padding: 0 }
+    }, React.createElement("div", {
+        style: { width: sz, height: sz, borderRadius: 10, background: "linear-gradient(135deg,#1D4ED8,#2563EB)",
+            display: "grid", placeItems: "center", boxShadow: "0 2px 8px rgba(37,99,235,0.4)" }
+    }, React.createElement(SparkIcon, { size: sm ? 14 : 18, color: "#fff" })), React.createElement("span", {
+        style: { fontWeight: 800, fontSize: sm ? 18 : 20, letterSpacing: "-0.02em", color: white ? "#fff" : "#0F172A" }
+    }, "CraftWeb"));
+}
+function Av({ name, sz = 38 }) {
+    return React.createElement("div", {
+        style: { width: sz, height: sz, background: avColor(name || "?"), borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            color: "#fff", fontWeight: 700, fontSize: Math.floor(sz * 0.38), flexShrink: 0 }
+    }, ini(name));
+}
+function Stars({ value = 0, size = 13, onChange }) {
+    return React.createElement("span", { style: { display: "inline-flex", gap: 2 } }, [1, 2, 3, 4, 5].map(i => React.createElement(StarIcon, {
+        key: i, size,
+        style: { color: i <= value ? "#F59E0B" : "#CBD5E1", cursor: onChange ? "pointer" : "default",
+            fill: i <= value ? "#F59E0B" : "none" },
+        onClick: onChange ? () => onChange(i) : undefined
+    })));
+}
+function SBadge({ status, big }) {
+    const c = STATUS_COLOR[status] || "#64748B";
+    const bg = STATUS_BG[status] || "#F1F5F9";
+    return React.createElement("span", {
+        style: { color: c, background: bg, display: "inline-flex", alignItems: "center", gap: 4,
+            fontWeight: 600, borderRadius: 999, padding: big ? "6px 12px" : "3px 10px", fontSize: big ? 13 : 11 }
+    }, React.createElement("span", { style: { width: 6, height: 6, borderRadius: "50%", background: c, display: "inline-block" } }), status);
+}
+function Field({ label, err, req, hint, children }) {
+    return React.createElement("div", null, React.createElement("label", { style: { display: "block", fontSize: 13, fontWeight: 500, color: "#334155", marginBottom: 4 } }, label, req && React.createElement("span", { style: { color: "#EF4444" } }, " *"), hint && React.createElement("span", { style: { fontWeight: 400, color: "#94A3B8" } }, " · " + hint)), children, err && React.createElement("p", { style: { marginTop: 4, fontSize: 12, color: "#DC2626", display: "flex", alignItems: "center", gap: 4 } }, React.createElement(XCircleIcon, { size: 11 }), err));
+}
+function CWModal({ open, onClose, children, maxW = "max-w-lg" }) {
+    React.useEffect(() => {
+        if (!open)
+            return;
+        const h = (e) => { if (e.key === "Escape")
+            onClose(); };
+        window.addEventListener("keydown", h);
+        return () => window.removeEventListener("keydown", h);
+    }, [open, onClose]);
+    if (!open)
+        return null;
+    return React.createElement("div", {
+        className: "fixed inset-0 z-40 overflow-y-auto p-4 flex items-start justify-center",
+        style: { background: "rgba(0,0,0,.5)" }, onClick: onClose
+    }, React.createElement("div", {
+        className: "bg-white rounded-2xl shadow-2xl w-full my-6 " + maxW,
+        onClick: (e) => e.stopPropagation()
+    }, children));
+}
+function NotifsBtn({ aud }) {
+    const { notifs, openNotifs } = useData();
+    const unread = notifs.filter(n => n.audience === aud && !n.read).length;
+    return React.createElement("button", {
+        onClick: () => openNotifs(aud),
+        style: { position: "relative", padding: 8, borderRadius: "50%", background: "transparent", border: "none", cursor: "pointer", color: "#475569", display: "flex", alignItems: "center" }
+    }, React.createElement(BellIcon, { size: 20 }), unread > 0 && React.createElement("span", {
+        style: { position: "absolute", top: 2, right: 2, background: "#EF4444", color: "#fff", borderRadius: "50%",
+            fontSize: 9, fontWeight: 700, minWidth: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }
+    }, unread));
+}
+// ── SITE PUBLIC ───────────────────────────────────────────────────────────────
+function PublicNav({ onOrder, onAuth, onDash }) {
+    const { me, logout } = useData();
+    const [mob, setMob] = React.useState(false);
+    const links = [["Services", "#services"], ["Méthode", "#methode"], ["Avis", "#avis"], ["FAQ", "#faq"], ["Contact", "#contact"]];
+    return React.createElement("header", {
+        style: { position: "sticky", top: 0, zIndex: 30, background: "#fff", borderBottom: "1px solid #F1F5F9" }
+    }, React.createElement("div", {
+        className: "max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between"
+    }, React.createElement(CWLogo), React.createElement("nav", { className: "hidden md:flex items-center gap-6" }, links.map(([l, h]) => React.createElement("a", { key: h, href: h, className: "text-sm font-medium text-slate-600 hover:text-blue-600 transition" }, l))), React.createElement("div", { className: "hidden md:flex items-center gap-3" }, me
+        ? React.createElement(React.Fragment, null, React.createElement("button", { onClick: () => onDash("orders"), className: "text-sm font-semibold text-slate-600 hover:text-blue-600" }, "Mes commandes"), React.createElement("button", { onClick: () => onDash(), className: BtnG }, React.createElement(DashboardIcon, { size: 15 }), "Mon espace"), React.createElement("button", { onClick: logout, className: "text-sm text-slate-400 hover:text-slate-600 px-2" }, "Déconnexion"))
+        : React.createElement(React.Fragment, null, React.createElement("button", { onClick: () => onAuth("login"), className: "text-sm font-semibold text-slate-700 hover:text-blue-600" }, "Connexion"), React.createElement("button", { onClick: () => onOrder(null), className: BtnP }, React.createElement(CartIcon, { size: 15 }), "Commander"))), React.createElement("button", { className: "md:hidden p-2 text-slate-600", onClick: () => setMob(true) }, React.createElement(MenuIcon, { size: 22 }))), 
+    // Menu mobile panneau droit
+    mob && React.createElement(React.Fragment, null, React.createElement("div", {
+        onClick: () => setMob(false),
+        style: { position: "fixed", inset: 0, zIndex: 30, background: "rgba(0,0,0,0.35)" }
+    }), React.createElement("div", {
+        style: { position: "fixed", top: 0, right: 0, height: "100%", width: "50%", minWidth: 260,
+            background: "#fff", zIndex: 40, display: "flex", flexDirection: "column", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)" }
+    }, React.createElement("div", {
+        style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: "1px solid #F1F5F9" }
+    }, React.createElement(CWLogo, { sm: true }), React.createElement("button", {
+        onClick: () => setMob(false),
+        style: { padding: 8, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#64748B" }
+    }, React.createElement(XIcon, { size: 20 }))), React.createElement("nav", { style: { flex: 1, padding: "8px 12px", overflowY: "auto" } }, links.map(([l, h]) => React.createElement("a", {
+        key: h, href: h, onClick: () => setMob(false),
+        style: { display: "block", padding: "13px 12px", borderRadius: 12, fontSize: 15, fontWeight: 500, color: "#334155", textDecoration: "none" }
+    }, l))), React.createElement("div", { style: { padding: "12px 16px", borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 8 } }, me
+        ? React.createElement(React.Fragment, null, React.createElement("button", { onClick: () => { onDash("orders"); setMob(false); }, className: BtnP + " w-full" }, "Mes commandes"), React.createElement("button", { onClick: () => { onDash(); setMob(false); }, className: BtnG + " w-full" }, "Mon espace"), React.createElement("button", {
+            onClick: () => { logout(); setMob(false); },
+            style: { fontSize: 14, color: "#94A3B8", background: "none", border: "none", cursor: "pointer", padding: "8px 0", textAlign: "center" }
+        }, "Déconnexion"))
+        : React.createElement(React.Fragment, null, React.createElement("a", {
+            href: "#contact", onClick: () => setMob(false),
+            className: BtnG + " w-full text-center no-underline", style: { textDecoration: "none" }
+        }, "Nous contacter"), React.createElement("button", { onClick: () => { onAuth("login"); setMob(false); }, className: "text-sm font-semibold text-slate-700 w-full py-2 hover:text-blue-600 border-none bg-transparent cursor-pointer" }, "Connexion"), React.createElement("button", { onClick: () => { onOrder(null); setMob(false); }, className: BtnP + " w-full" }, "Commander"))))));
+}
+function Hero({ onOrder }) {
+    return React.createElement("section", { style: { background: "linear-gradient(135deg,#EFF6FF 0%,#fff 60%)" },
+        className: "relative overflow-hidden" }, React.createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 py-16 lg:py-24 grid lg:grid-cols-2 gap-12 items-center" }, React.createElement("div", null, React.createElement("span", { className: "inline-flex items-center gap-2 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1.5 mb-6" }, React.createElement("span", { className: "w-1.5 h-1.5 rounded-full bg-blue-500" }), "Studio digital · Sites et applications"), React.createElement("h1", { className: "text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight" }, "On crée le site qui fait ", React.createElement("span", { className: "text-blue-600" }, "grandir"), " votre activité."), React.createElement("p", { className: "mt-5 text-lg text-slate-600 leading-relaxed" }, "CraftWeb conçoit des sites vitrines, boutiques et applications sur mesure. Commandez, suivez l'avancement et échangez avec l'équipe."), React.createElement("div", { className: "mt-8 flex flex-wrap gap-3" }, React.createElement("button", { onClick: () => onOrder(null), className: BtnP + " text-base px-7 py-3" }, React.createElement(CartIcon, { size: 17 }), "Commander un projet"), React.createElement("a", { href: "#services", className: BtnG + " text-base px-7 py-3" }, "Voir les services", React.createElement(ArrowRightIcon, { size: 15 }))), React.createElement("div", { className: "mt-8 flex flex-wrap gap-5 text-sm" }, React.createElement("span", { className: "flex items-center gap-2 text-slate-600" }, React.createElement(BadgeIcon, { size: 16, className: "text-blue-600" }), React.createElement("b", null, "+120"), " projets livrés"), React.createElement("span", { className: "flex items-center gap-2 text-slate-600" }, React.createElement(StarIcon, { size: 16, style: { color: "#F59E0B", fill: "#F59E0B" } }), React.createElement("b", null, "4,9/5"), " satisfaction"), React.createElement("span", { className: "flex items-center gap-2 text-slate-600" }, React.createElement(ClockIcon, { size: 16, className: "text-blue-600" }), "Livraison dès ", React.createElement("b", null, "5 jours")))), React.createElement("div", { className: "rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden" }, React.createElement("div", { className: "flex gap-1.5 px-4 py-3 bg-slate-50 border-b border-slate-100" }, React.createElement("span", { className: "w-3 h-3 rounded-full bg-red-400" }), React.createElement("span", { className: "w-3 h-3 rounded-full bg-amber-400" }), React.createElement("span", { className: "w-3 h-3 rounded-full bg-emerald-400" }), React.createElement("div", { className: "ml-2 flex-1 h-4 rounded bg-white border border-slate-200" })), React.createElement("div", { className: "p-5 space-y-4" }, React.createElement("div", { className: "flex justify-between items-center" }, React.createElement("div", { className: "h-2.5 w-20 rounded bg-slate-200" }), React.createElement("div", { className: "h-7 w-24 rounded-full bg-blue-600" })), React.createElement("div", { className: "h-16 rounded-xl", style: { background: "linear-gradient(135deg,#EFF6FF,#DBEAFE)" } }), React.createElement("div", { className: "grid grid-cols-2 gap-3" }, ["#2563EB", "#0284C7", "#1D4ED8", "#0369A1"].map((c, i) => React.createElement("div", { key: i, className: "rounded-xl border border-slate-100 p-3" }, React.createElement("div", { className: "w-6 h-6 rounded-lg mb-2", style: { background: c } }), React.createElement("div", { className: "h-2 rounded bg-slate-200 mb-1" }), React.createElement("div", { className: "h-2 rounded bg-slate-100", style: { width: "66%" } }))))))));
+}
+// ── LIENS STRIPE (Payment Links publics — aucune clé secrète) ─────────────────
+const STRIPE_LINKS = {
+    portfolio: "https://buy.stripe.com/test_5kQdRa4W89OJ9YWdGs14400",
+    vitrine:   "https://buy.stripe.com/test_14A3cwagsgd7b30aug14401",
+    ecommerce: "https://buy.stripe.com/test_4gM3cwewI4up6MK6e014402",
+    appweb:    "https://buy.stripe.com/test_4gM14o1JW3qlefc59W14403"
+};
+function openStripe(svcId) {
+    var url = STRIPE_LINKS[svcId];
+    if (!url) return;
+    var w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) window.location.href = url; // repli si le nouvel onglet est bloqué (mobile)
+}
+
+function ServicesSection({ onOrder, onDetail }) {
+    return React.createElement("section", {
+        id: "services", className: "py-20 bg-slate-50", style: { scrollMarginTop: 72 }
+    }, React.createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6" }, React.createElement("span", { className: "text-xs font-bold uppercase tracking-widest text-blue-600" }, "Nos services"), React.createElement("h2", { className: "mt-3 text-3xl sm:text-4xl font-bold text-slate-900" }, "Des offres claires, un prix affiché."), React.createElement("div", { className: "mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-6" }, SERVICES.map(svc => React.createElement("div", {
+        key: svc.id,
+        className: "relative rounded-2xl bg-white p-6 border transition hover:shadow-lg " + (svc.popular ? "border-blue-300" : "border-slate-100")
+    }, svc.popular && React.createElement("span", {
+        className: "absolute -top-3 left-5 rounded-full bg-blue-600 text-white text-xs font-bold px-3 py-0.5"
+    }, "Populaire"), React.createElement("div", {
+        className: "w-11 h-11 rounded-xl grid place-items-center mb-4",
+        style: { background: SVC_COLOR[svc.id] + "18" }
+    }, React.createElement(GlobeIcon, { size: 19, style: { color: SVC_COLOR[svc.id] } })), React.createElement("h3", { className: "font-bold text-lg text-slate-900" }, svc.name), React.createElement("p", { className: "mt-1.5 text-sm text-slate-500 leading-relaxed", style: { minHeight: 52 } }, svc.desc), React.createElement("div", { className: "mt-4 flex items-baseline gap-1" }, React.createElement("span", { className: "text-3xl font-extrabold text-slate-900" }, fmtM(svc.price)), React.createElement("span", { className: "text-sm text-slate-400" }, "prix fixe")), React.createElement("div", { className: "mt-4 space-y-2" }, React.createElement("button", { onClick: () => openStripe(svc.id), className: BtnP + " w-full" }, "Commander"), React.createElement("button", {
+        onClick: () => onDetail(svc),
+        className: "w-full text-sm font-semibold text-slate-400 hover:text-blue-600 py-1 transition bg-transparent border-none cursor-pointer"
+    }, "Voir les détails")))))));
+}
+function Methode() {
+    const steps = [
+        ["Vous commandez", "Choisissez un service et décrivez votre projet."],
+        ["On cadre ensemble", "Notre équipe vous contacte pour préciser vos besoins."],
+        ["On conçoit", "Design, développement et validations jusqu'à satisfaction."],
+        ["On livre", "Votre site est mis en ligne — vous gardez la main."],
+    ];
+    return React.createElement("section", {
+        id: "methode", className: "py-20", style: { scrollMarginTop: 72 }
+    }, React.createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6" }, React.createElement("span", { className: "text-xs font-bold uppercase tracking-widest text-blue-600" }, "Comment ça marche"), React.createElement("h2", { className: "mt-3 text-3xl sm:text-4xl font-bold text-slate-900" }, "De la commande à la mise en ligne."), React.createElement("div", { className: "mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-8" }, steps.map(([t, d], i) => React.createElement("div", { key: i }, React.createElement("div", { className: "text-5xl font-extrabold text-blue-100 leading-none" }, String(i + 1).padStart(2, "0")), React.createElement("h3", { className: "mt-2 font-bold text-slate-900" }, t), React.createElement("p", { className: "mt-1.5 text-sm text-slate-500 leading-relaxed" }, d))))));
+}
+function Temoignages() {
+    const { reviews } = useData();
+    const ok = reviews.filter(r => r.approved).slice(0, 3);
+    if (!ok.length)
+        return null;
+    return React.createElement("section", {
+        id: "avis", className: "py-20 bg-slate-50", style: { scrollMarginTop: 72 }
+    }, React.createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6" }, React.createElement("span", { className: "text-xs font-bold uppercase tracking-widest text-blue-600" }, "Ils nous font confiance"), React.createElement("h2", { className: "mt-3 text-3xl sm:text-4xl font-bold text-slate-900" }, "Ce que disent nos clients."), React.createElement("div", { className: "mt-10 grid md:grid-cols-3 gap-6" }, ok.map(r => React.createElement("div", { key: r.id, className: "rounded-2xl bg-white p-6 border border-slate-100" }, React.createElement(QuoteIcon, { size: 22, className: "text-blue-200" }), React.createElement("p", { className: "mt-3 text-slate-700 leading-relaxed" }, r.text), React.createElement("div", { className: "mt-4 flex items-center gap-3" }, React.createElement(Av, { name: r.clientName, sz: 36 }), React.createElement("div", null, React.createElement("p", { className: "font-semibold text-slate-900 text-sm" }, r.clientName), React.createElement(Stars, { value: r.rating, size: 12 }))))))));
+}
+function FAQSection() {
+    const [open, setOpen] = React.useState(-1);
+    return React.createElement("section", { id: "faq", className: "py-20", style: { scrollMarginTop: 72 } }, React.createElement("div", { className: "max-w-3xl mx-auto px-4 sm:px-6 text-center" }, React.createElement("span", { className: "text-xs font-bold uppercase tracking-widest text-blue-600" }, "FAQ"), React.createElement("h2", { className: "mt-3 text-3xl font-bold text-slate-900" }, "Questions fréquentes."), React.createElement("div", { className: "mt-8 space-y-3 text-left" }, FAQ_ITEMS.map((f, i) => React.createElement("div", { key: i, className: "rounded-2xl border border-slate-100 bg-white overflow-hidden" }, React.createElement("button", {
+        onClick: () => setOpen(open === i ? -1 : i),
+        className: "w-full flex items-center justify-between gap-4 px-5 py-4 text-left bg-transparent border-none cursor-pointer"
+    }, React.createElement("span", { className: "font-semibold text-slate-900" }, f.q), React.createElement(ChevronDownIcon, { size: 16, className: "text-slate-400 shrink-0 transition-transform " + (open === i ? "rotate-180" : "") })), open === i && React.createElement("div", { className: "px-5 pb-5 text-sm text-slate-600 leading-relaxed" }, f.a))))));
+}
+function SectionContact() {
+    const [f, setF] = React.useState({ name: "", email: "", subject: "", message: "" });
+    const [sent, setSent] = React.useState(false);
+    const upd = (k, v) => setF(x => (Object.assign(Object.assign({}, x), { [k]: v })));
+    const send = () => {
+        if (!f.name.trim() || !f.email.trim() || !f.message.trim())
+            return;
+        const body = "De : " + f.name + "\nEmail : " + f.email + "\n\n" + f.message;
+        window.open("mailto:CraftWeb.pro@icloud.com?subject=" + encodeURIComponent(f.subject || "Contact CraftWeb") + "&body=" + encodeURIComponent(body), "_blank");
+        setSent(true);
+        setTimeout(() => setSent(false), 5000);
+    };
+    return React.createElement("section", { id: "contact", className: "py-20 bg-slate-50", style: { scrollMarginTop: 72 } }, React.createElement("div", { className: "max-w-5xl mx-auto px-4 sm:px-6" }, React.createElement("div", { className: "grid lg:grid-cols-2 gap-12 items-start" }, React.createElement("div", null, React.createElement("span", { className: "text-xs font-bold uppercase tracking-widest text-blue-600" }, "Nous contacter"), React.createElement("h2", { className: "mt-3 text-3xl sm:text-4xl font-bold text-slate-900" }, "Une question ? Parlons-en."), React.createElement("p", { className: "mt-4 text-slate-600 leading-relaxed" }, "Que vous ayez un projet ou une simple question, notre équipe vous répond sous 24h ouvrables."), React.createElement("div", { className: "mt-8 space-y-4" }, React.createElement("div", { className: "flex items-center gap-4 rounded-2xl bg-white border border-slate-100 p-4" }, React.createElement("div", { className: "w-11 h-11 rounded-xl bg-blue-600 grid place-items-center shrink-0" }, React.createElement(MailIcon, { size: 18, color: "#fff" })), React.createElement("div", null, React.createElement("p", { className: "text-xs text-slate-400 font-medium" }, "Email"), React.createElement("p", { className: "font-semibold text-slate-900" }, "CraftWeb.pro@icloud.com"))), React.createElement("div", { className: "flex items-center gap-4 rounded-2xl bg-white border border-slate-100 p-4" }, React.createElement("div", { className: "w-11 h-11 rounded-xl bg-blue-100 grid place-items-center shrink-0" }, React.createElement(ClockIcon, { size: 18, className: "text-blue-600" })), React.createElement("div", null, React.createElement("p", { className: "text-xs text-slate-400 font-medium" }, "Délai de réponse"), React.createElement("p", { className: "font-semibold text-slate-900" }, "Sous 24h ouvrables"))))), React.createElement("div", { className: "rounded-2xl bg-white border border-slate-100 p-6 shadow-sm" }, sent
+        ? React.createElement("div", { className: "text-center py-8" }, React.createElement(CheckCircleIcon, { size: 44, className: "text-emerald-500 mx-auto mb-4" }), React.createElement("h3", { className: "text-xl font-bold text-slate-900" }, "Messagerie ouverte !"), React.createElement("p", { className: "mt-2 text-slate-500 text-sm" }, "Votre message est prêt à envoyer."))
+        : React.createElement("div", { className: "space-y-4" }, React.createElement("h3", { className: "font-bold text-slate-900 text-lg" }, "Envoyez-nous un message"), React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Votre nom", req: true }, React.createElement("input", { className: inputCls(false), value: f.name, onChange: e => upd("name", e.target.value), placeholder: "Jean Dupont" })), React.createElement(Field, { label: "Email", req: true }, React.createElement("input", { className: inputCls(false), value: f.email, onChange: e => upd("email", e.target.value), placeholder: "jean@email.fr", type: "email" }))), React.createElement(Field, { label: "Objet" }, React.createElement("input", { className: inputCls(false), value: f.subject, onChange: e => upd("subject", e.target.value), placeholder: "Demande de devis, question..." })), React.createElement(Field, { label: "Message", req: true }, React.createElement("textarea", { rows: 4, className: inputCls(false), value: f.message, onChange: e => upd("message", e.target.value), placeholder: "Décrivez votre besoin..." })), React.createElement("button", { onClick: send, className: BtnP + " w-full" }, React.createElement(MailIcon, { size: 15 }), "Envoyer le message"))))));
+}
+function SiteFooter() {
+    return React.createElement("footer", { className: "bg-slate-900 text-slate-400" }, React.createElement("div", { className: "max-w-7xl mx-auto px-4 sm:px-6 py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-8" }, React.createElement("div", null, React.createElement(CWLogo, { white: true }), React.createElement("p", { className: "mt-4 text-sm leading-relaxed" }, "Studio digital — création de sites et applications sur mesure.")), React.createElement("div", null, React.createElement("p", { className: "text-white font-semibold text-sm mb-4" }, "Services"), React.createElement("ul", { className: "space-y-2 text-sm" }, SERVICES.map(s => React.createElement("li", { key: s.id }, React.createElement("a", { href: "#services", className: "hover:text-white transition" }, s.name))))), React.createElement("div", null, React.createElement("p", { className: "text-white font-semibold text-sm mb-4" }, "Navigation"), React.createElement("ul", { className: "space-y-2 text-sm" }, [["#methode", "Notre méthode"], ["#avis", "Avis clients"], ["#faq", "FAQ"], ["#contact", "Contact"]].map(([h, l]) => React.createElement("li", { key: h }, React.createElement("a", { href: h, className: "hover:text-white" }, l))))), React.createElement("div", null, React.createElement("p", { className: "text-white font-semibold text-sm mb-4" }, "Contact"), React.createElement("ul", { className: "space-y-2 text-sm" }, React.createElement("li", { className: "flex items-center gap-2" }, React.createElement(MailIcon, { size: 13 }), "CraftWeb.pro@icloud.com"), React.createElement("li", { className: "flex items-center gap-2" }, React.createElement(BuildingIcon, { size: 13 }), "Paris, France")))), React.createElement("div", { className: "border-t border-slate-800 px-4 py-4 flex justify-between items-center text-xs text-slate-600" }, React.createElement("span", null, "© " + new Date().getFullYear() + " CraftWeb Studio"), React.createElement("span", { className: "flex items-center gap-1" }, React.createElement(ShieldIcon, { size: 11 }), "Données sécurisées")));
+}
+// ── MODALES PUBLIQUES ─────────────────────────────────────────────────────────
+function DetailModal({ svc, onClose, onOrder }) {
+    return React.createElement(CWModal, { open: !!svc, onClose, maxW: "max-w-lg" }, svc && React.createElement("div", { className: "p-6 sm:p-8" }, React.createElement("div", { className: "flex items-start justify-between mb-5" }, React.createElement("div", { className: "flex items-center gap-3" }, React.createElement("div", {
+        className: "w-12 h-12 rounded-xl grid place-items-center",
+        style: { background: SVC_COLOR[svc.id] + "18" }
+    }, React.createElement(GlobeIcon, { size: 21, style: { color: SVC_COLOR[svc.id] } })), React.createElement("div", null, React.createElement("h3", { className: "text-xl font-bold text-slate-900" }, svc.name), React.createElement("p", { className: "text-sm text-slate-500" }, svc.desc))), React.createElement("button", { onClick: onClose, className: "p-2 hover:bg-slate-100 rounded-lg bg-transparent border-none cursor-pointer" }, React.createElement(XIcon, { size: 16 }))), React.createElement("div", { className: "mt-5 grid grid-cols-2 gap-3" }, React.createElement("div", { className: "rounded-xl bg-blue-50 p-4" }, React.createElement("p", { className: "text-xs text-slate-500" }, "Prix fixe"), React.createElement("p", { className: "text-2xl font-extrabold text-blue-700 mt-0.5" }, fmtM(svc.price))), React.createElement("div", { className: "rounded-xl bg-slate-50 p-4" }, React.createElement("p", { className: "text-xs text-slate-500" }, "Délai estimé"), React.createElement("p", { className: "text-2xl font-extrabold text-slate-900 mt-0.5" }, svc.delivery + " j"))), React.createElement("p", { className: "mt-5 text-xs font-bold uppercase tracking-wide text-slate-400" }, "Prestations incluses"), React.createElement("ul", { className: "mt-2 space-y-2" }, svc.features.map(feat => React.createElement("li", { key: feat, className: "flex items-center gap-2.5 text-sm text-slate-700" }, React.createElement("span", { className: "w-5 h-5 rounded-full bg-blue-100 grid place-items-center shrink-0" }, React.createElement(CheckIcon, { size: 11, className: "text-blue-600" })), feat))), (svc.exclusions && svc.exclusions.length > 0) && React.createElement("div", { className: "mt-5" }, React.createElement("p", { className: "text-xs font-bold uppercase tracking-wide text-slate-400" }, "Non inclus"), React.createElement("ul", { className: "mt-2 space-y-2" }, svc.exclusions.map(ex => React.createElement("li", { key: ex, className: "flex items-center gap-2.5 text-sm text-slate-500" }, React.createElement("span", { className: "w-5 h-5 rounded-full bg-slate-100 grid place-items-center shrink-0" }, React.createElement(XIcon, { size: 11, className: "text-slate-400" })), ex)))), React.createElement("button", {
+        onClick: () => { onClose(); openStripe(svc.id); },
+        className: BtnP + " w-full mt-6"
+    }, React.createElement(CartIcon, { size: 14 }), "Commander ce service")));
+}
+function AuthModal({ open, mode, setMode, onClose, onOk }) {
+    const { login, register, loginGoogle, loginApple, toast } = useData();
+    const [f, setF] = React.useState({ firstName: "", lastName: "", email: "", phone: "", password: "", confirm: "" });
+    const [errs, setErrs] = React.useState({});
+    const [errMsg, setErrMsg] = React.useState("");
+    const [busy, setBusy] = React.useState(false);
+    React.useEffect(() => {
+        if (open) {
+            setF({ firstName: "", lastName: "", email: "", phone: "", password: "", confirm: "" });
+            setErrs({});
+            setErrMsg("");
+            setBusy(false);
+        }
+    }, [open, mode]);
+    const s = (k, v) => { setF(x => (Object.assign(Object.assign({}, x), { [k]: v }))); setErrs(e => (Object.assign(Object.assign({}, e), { [k]: undefined }))); setErrMsg(""); };
+    const submit = async () => {
+        if (busy)
+            return;
+        const e = {};
+        if (!okEmail(f.email))
+            e.email = "Email invalide.";
+        if (!f.password)
+            e.password = "Mot de passe requis.";
+        if (mode === "register") {
+            if (!f.firstName.trim())
+                e.firstName = "Prénom requis.";
+            if (!f.lastName.trim())
+                e.lastName = "Nom requis.";
+            if (f.password.length < 6)
+                e.password = "6 caractères minimum.";
+            if (f.password !== f.confirm)
+                e.confirm = "Les mots de passe diffèrent.";
+        }
+        setErrs(e);
+        if (Object.keys(e).length)
+            return;
+        setBusy(true);
+        const res = await (mode === "login" ? login(f.email, f.password) : register(f));
+        setBusy(false);
+        if (!res.ok) {
+            setErrMsg(res.err);
+            return;
+        }
+        toast(mode === "login" ? "Bienvenue !" : "Compte créé avec succès !");
+        onOk(res.user);
+    };
+    const google = async () => {
+        if (busy)
+            return;
+        setBusy(true);
+        const res = await loginGoogle();
+        setBusy(false);
+        if (!res.ok) {
+            setErrMsg(res.err);
+            return;
+        }
+        toast("Connecté avec Google !");
+        onOk(res.user);
+    };
+    const apple = async () => {
+        if (busy)
+            return;
+        setBusy(true);
+        const res = await loginApple();
+        setBusy(false);
+        if (!res.ok) {
+            setErrMsg(res.err);
+            return;
+        }
+        toast("Connecté avec Apple !");
+        onOk(res.user);
+    };
+    return React.createElement(CWModal, { open, onClose, maxW: "max-w-md" }, React.createElement("div", { className: "p-6 sm:p-8" }, React.createElement("div", { className: "flex items-center justify-between mb-5" }, React.createElement("h3", { className: "text-xl font-bold text-slate-900" }, mode === "login" ? "Connexion" : "Créer un compte"), React.createElement("button", { onClick: onClose, className: "p-2 hover:bg-slate-100 rounded-lg bg-transparent border-none cursor-pointer" }, React.createElement(XIcon, { size: 16 }))), errMsg && React.createElement("div", { className: "mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm text-red-600 flex items-center gap-2" }, React.createElement(XCircleIcon, { size: 13 }), errMsg), 
+    // Bouton Google
+    React.createElement("button", {
+        onClick: google, disabled: busy,
+        className: "w-full flex items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer mb-4",
+        style: { opacity: busy ? 0.6 : 1 }
+    }, React.createElement("svg", { width: 18, height: 18, viewBox: "0 0 24 24" }, React.createElement("path", { fill: "#4285F4", d: "M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" }), React.createElement("path", { fill: "#34A853", d: "M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" }), React.createElement("path", { fill: "#FBBC05", d: "M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" }), React.createElement("path", { fill: "#EA4335", d: "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" })), busy ? "Veuillez patienter..." : "Continuer avec Google"), React.createElement("div", { className: "flex items-center gap-3 my-4" }, React.createElement("div", { className: "flex-1 h-px bg-slate-200" }), React.createElement("span", { className: "text-xs text-slate-400" }, "ou par email"), React.createElement("div", { className: "flex-1 h-px bg-slate-200" })), React.createElement("div", { className: "space-y-4" }, mode === "register" && React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Prénom", req: true, err: errs.firstName }, React.createElement("input", { className: inputCls(errs.firstName), value: f.firstName, onChange: e => s("firstName", e.target.value) })), React.createElement(Field, { label: "Nom", req: true, err: errs.lastName }, React.createElement("input", { className: inputCls(errs.lastName), value: f.lastName, onChange: e => s("lastName", e.target.value) }))), React.createElement(Field, { label: "Email", req: true, err: errs.email }, React.createElement("input", { className: inputCls(errs.email), value: f.email, onChange: e => s("email", e.target.value), placeholder: "vous@email.fr", type: "email" })), mode === "register" && React.createElement(Field, { label: "Téléphone", err: errs.phone }, React.createElement("input", { className: inputCls(errs.phone), value: f.phone, onChange: e => s("phone", e.target.value), placeholder: "+33 6 12 34 56 78" })), React.createElement(Field, { label: "Mot de passe", req: true, err: errs.password }, React.createElement("input", { type: "password", className: inputCls(errs.password), value: f.password,
+        onChange: e => s("password", e.target.value), onKeyDown: e => e.key === "Enter" && submit(), placeholder: "••••••••" })), mode === "register" && React.createElement(Field, { label: "Confirmer", req: true, err: errs.confirm }, React.createElement("input", { type: "password", className: inputCls(errs.confirm), value: f.confirm,
+        onChange: e => s("confirm", e.target.value), placeholder: "••••••••" }))), React.createElement("button", { onClick: submit, disabled: busy, className: BtnP + " w-full mt-5", style: { opacity: busy ? 0.6 : 1 } }, busy ? "Veuillez patienter..." : (mode === "login" ? "Se connecter" : "Créer mon compte")), React.createElement("p", { className: "mt-4 text-center text-sm text-slate-500" }, mode === "login" ? "Pas de compte ? " : "Déjà inscrit ? ", React.createElement("button", {
+        onClick: () => setMode(mode === "login" ? "register" : "login"),
+        className: "font-semibold text-blue-600 hover:underline bg-transparent border-none cursor-pointer"
+    }, mode === "login" ? "Créer un compte" : "Se connecter"))));
+}
+function OrderModal({ open, svcId, onClose, onDash }) {
+    const { me, createOrder, toast } = useData();
+    const [step, setStep] = React.useState("form");
+    const [done, setDone] = React.useState(null);
+    const [f, setF] = React.useState({ firstName: "", lastName: "", email: "", phone: "", serviceId: SERVICES[0].id, description: "", files: [] });
+    const [appType, setAppType] = React.useState("");
+    const [cgv, setCgv] = React.useState(false);
+    const [errs, setErrs] = React.useState({});
+    React.useEffect(() => {
+        if (open) {
+            setStep("form");
+            setDone(null);
+            setErrs({});
+            setCgv(false);
+            setAppType("");
+            setF({ firstName: (me === null || me === void 0 ? void 0 : me.firstName) || "", lastName: (me === null || me === void 0 ? void 0 : me.lastName) || "", email: (me === null || me === void 0 ? void 0 : me.email) || "",
+                phone: (me === null || me === void 0 ? void 0 : me.phone) || "", serviceId: svcId || SERVICES[0].id, description: "", files: [] });
+        }
+    }, [open, svcId]);
+    const s = (k, v) => { setF(x => (Object.assign(Object.assign({}, x), { [k]: v }))); setErrs(e => (Object.assign(Object.assign({}, e), { [k]: undefined }))); };
+    const svc = SERVICES.find(x => x.id === f.serviceId);
+    const isApp = !!(svc && svc.id === "appweb");
+    const validate = () => {
+        const e = {};
+        if (!f.firstName.trim())
+            e.firstName = "Requis.";
+        if (!f.lastName.trim())
+            e.lastName = "Requis.";
+        if (!okEmail(f.email))
+            e.email = "Email invalide.";
+        if (isApp && !appType)
+            e.appType = "Choisissez le type d'application.";
+        if (!f.description.trim() || f.description.length < 10)
+            e.description = "Décrivez votre projet (10 car. min).";
+        if (!cgv)
+            e.cgv = "Vous devez accepter les conditions générales de vente.";
+        setErrs(e);
+        return !Object.keys(e).length;
+    };
+    const submit = () => {
+        if (!validate()) {
+            toast("Vérifiez le formulaire.", "err");
+            return;
+        }
+        const desc = isApp ? ("[Type d'application : " + appType + "] " + f.description) : f.description;
+        const o = createOrder(Object.assign(Object.assign({}, f), { description: desc, userId: (me === null || me === void 0 ? void 0 : me.id) || null }));
+        setDone(o);
+        setStep("done");
+        toast("Commande enregistrée !");
+    };
+    return React.createElement(CWModal, { open, onClose, maxW: "max-w-xl" }, step === "form"
+        ? React.createElement("div", { className: "p-6 sm:p-8" },
+            React.createElement("div", { className: "flex items-center justify-between mb-5" },
+                React.createElement("h3", { className: "text-xl font-bold text-slate-900" }, "Commander un projet"),
+                React.createElement("button", { onClick: onClose, className: "p-2 hover:bg-slate-100 rounded-lg bg-transparent border-none cursor-pointer" }, React.createElement(XIcon, { size: 16 }))),
+            React.createElement("div", { className: "space-y-4" },
+                React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+                    React.createElement(Field, { label: "Prénom", req: true, err: errs.firstName }, React.createElement("input", { className: inputCls(errs.firstName), value: f.firstName, onChange: e => s("firstName", e.target.value), placeholder: "Camille" })),
+                    React.createElement(Field, { label: "Nom", req: true, err: errs.lastName }, React.createElement("input", { className: inputCls(errs.lastName), value: f.lastName, onChange: e => s("lastName", e.target.value), placeholder: "Durand" }))),
+                React.createElement("div", { className: "grid grid-cols-2 gap-3" },
+                    React.createElement(Field, { label: "Email", req: true, err: errs.email }, React.createElement("input", { className: inputCls(errs.email), value: f.email, onChange: e => s("email", e.target.value), placeholder: "vous@email.fr" })),
+                    React.createElement(Field, { label: "Téléphone" }, React.createElement("input", { className: inputCls(false), value: f.phone, onChange: e => s("phone", e.target.value), placeholder: "+33 6..." }))),
+                React.createElement(Field, { label: "Offre" }, React.createElement("div", { style: { position: "relative" } }, React.createElement("select", {
+                    className: inputCls(false) + " appearance-none pr-9",
+                    value: f.serviceId, onChange: e => { s("serviceId", e.target.value); setAppType(""); }
+                }, SERVICES.map(x => React.createElement("option", { key: x.id, value: x.id }, x.name + " — " + fmtM(x.price)))), React.createElement(ChevronDownIcon, { size: 13, style: { position: "absolute", right: 12, top: 12, color: "#94A3B8", pointerEvents: "none" } }))),
+                isApp && React.createElement(Field, { label: "Type d'application", req: true, err: errs.appType, hint: "périmètre de l'offre" }, React.createElement("div", { style: { position: "relative" } }, React.createElement("select", {
+                    className: inputCls(errs.appType) + " appearance-none pr-9",
+                    value: appType, onChange: e => { setAppType(e.target.value); setErrs(x => Object.assign(Object.assign({}, x), { appType: undefined })); }
+                }, React.createElement("option", { value: "" }, "Choisir une fonctionnalité..."), (svc.appTypes || []).map(t => React.createElement("option", { key: t, value: t }, t))), React.createElement(ChevronDownIcon, { size: 13, style: { position: "absolute", right: 12, top: 12, color: "#94A3B8", pointerEvents: "none" } }))),
+                isApp && React.createElement("p", { className: "text-xs text-slate-400 -mt-2" }, "Si votre besoin sort de ce périmètre, contactez-nous avant de commander."),
+                React.createElement(Field, { label: "Description du projet", req: true, err: errs.description }, React.createElement("textarea", {
+                    rows: 4, className: inputCls(errs.description), value: f.description,
+                    onChange: e => s("description", e.target.value),
+                    placeholder: "Parlez-nous de votre projet, vos objectifs, vos références..."
+                })),
+                React.createElement(Field, { label: "Fichiers", hint: "cahier des charges, logo..." }, React.createElement("label", {
+                    className: "flex items-center gap-2 rounded-xl border border-dashed border-slate-300 px-3.5 py-3 text-sm text-slate-500 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
+                }, React.createElement(UploadIcon, { size: 14 }), "Ajouter des fichiers", React.createElement("input", { type: "file", multiple: true, style: { display: "none" }, onChange: e => s("files", [...f.files, ...Array.from(e.target.files || []).map(x => x.name)]) })), f.files.length > 0 && React.createElement("div", { className: "mt-2 space-y-1" }, f.files.map((fn, i) => React.createElement("div", { key: i, className: "flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-1.5" }, React.createElement("span", { className: "flex items-center gap-1.5 text-slate-700 truncate" }, React.createElement(ClipIcon, { size: 11 }), fn), React.createElement("button", {
+                    onClick: () => s("files", f.files.filter((_, j) => j !== i)),
+                    className: "text-slate-400 hover:text-red-500 bg-transparent border-none cursor-pointer"
+                }, React.createElement(XIcon, { size: 12 })))))),
+                svc && React.createElement("div", { className: "rounded-xl border border-slate-100 bg-slate-50 p-4" },
+                    React.createElement("p", { className: "text-xs font-bold uppercase tracking-wide text-slate-400 mb-2" }, "Prestations comprises"),
+                    React.createElement("ul", { className: "space-y-1.5" }, svc.features.map(feat => React.createElement("li", { key: feat, className: "flex items-start gap-2 text-sm text-slate-700" }, React.createElement(CheckIcon, { size: 13, className: "text-blue-600 shrink-0 mt-0.5" }), feat))),
+                    (svc.exclusions && svc.exclusions.length > 0) && React.createElement("div", { className: "mt-3" },
+                        React.createElement("p", { className: "text-xs font-bold uppercase tracking-wide text-slate-400 mb-2" }, "Non compris"),
+                        React.createElement("ul", { className: "space-y-1.5" }, svc.exclusions.map(ex => React.createElement("li", { key: ex, className: "flex items-start gap-2 text-sm text-slate-500" }, React.createElement(XIcon, { size: 13, className: "text-slate-400 shrink-0 mt-0.5" }), ex))))),
+                React.createElement("div", null,
+                    React.createElement("label", { className: "flex items-start gap-2.5 cursor-pointer" },
+                        React.createElement("input", { type: "checkbox", checked: cgv, onChange: e => { setCgv(e.target.checked); setErrs(x => Object.assign(Object.assign({}, x), { cgv: undefined })); }, style: { width: 18, height: 18, marginTop: 1, accentColor: "#2563EB", flexShrink: 0 } }),
+                        React.createElement("span", { className: "text-sm text-slate-600" }, "J'accepte les ", React.createElement("span", { className: "font-semibold text-slate-800" }, "conditions générales de vente"), " et je confirme avoir vérifié les prestations comprises et les exclusions.")),
+                    errs.cgv && React.createElement("p", { className: "mt-1.5 text-xs text-red-600 flex items-center gap-1" }, React.createElement(XCircleIcon, { size: 11 }), errs.cgv))),
+            React.createElement("div", { className: "mt-6 flex items-center justify-between gap-4" },
+                React.createElement("div", null, React.createElement("span", { className: "text-xs text-slate-400" }, "Prix fixe"), React.createElement("p", { className: "text-xl font-extrabold text-blue-700" }, fmtM((svc === null || svc === void 0 ? void 0 : svc.price) || 0))),
+                React.createElement("button", { onClick: submit, className: BtnP }, React.createElement(CartIcon, { size: 14 }), "Commander")))
+        : React.createElement("div", { className: "p-8 text-center" }, React.createElement("div", { className: "w-16 h-16 rounded-full bg-emerald-100 grid place-items-center mx-auto" }, React.createElement(CheckCircleIcon, { size: 28, className: "text-emerald-600" })), React.createElement("h3", { className: "mt-5 text-2xl font-bold text-slate-900" }, "Commande enregistrée !"), React.createElement("p", { className: "mt-1 text-slate-500" }, "Référence : ", React.createElement("span", { className: "font-mono font-bold text-blue-600" }, done === null || done === void 0 ? void 0 : done.ref)), React.createElement("div", { className: "mt-4 rounded-xl bg-slate-50 p-4 text-left text-sm space-y-1.5" }, React.createElement("div", { className: "flex justify-between" }, React.createElement("span", { className: "text-slate-500" }, "Offre"), React.createElement("span", { className: "font-semibold" }, done === null || done === void 0 ? void 0 : done.serviceName)), React.createElement("div", { className: "flex justify-between" }, React.createElement("span", { className: "text-slate-500" }, "Montant"), React.createElement("span", { className: "font-bold text-blue-700" }, fmtM(done === null || done === void 0 ? void 0 : done.price))), React.createElement("div", { className: "flex justify-between items-center" }, React.createElement("span", { className: "text-slate-500" }, "Statut"), React.createElement(SBadge, { status: done === null || done === void 0 ? void 0 : done.status }))), React.createElement("div", { className: "mt-5 flex flex-col gap-2" }, React.createElement("button", { onClick: () => { onClose(); onDash(); }, className: BtnP + " w-full" }, "Voir mes commandes"), React.createElement("button", { onClick: onClose, className: BtnG + " w-full" }, "Fermer"))));
+}
+
+// ── ESPACE CLIENT ─────────────────────────────────────────────────────────────
+function ClientDashboard({ goSite, onOrder, initialTab = "overview" }) {
+    const { me, orders, messages, notifs } = useData();
+    const [tab, setTab] = React.useState(initialTab);
+    const [selOrd, setSelOrd] = React.useState(null);
+    const myOrds = orders.filter(o => o.userId === me.id || o.email === me.email);
+    const myMsgs = messages.filter(m => m.userId === me.id);
+    const unread = myMsgs.filter(m => m.sender === "agency" && !m.read).length;
+    const nav = [
+        { id: "overview", l: "Accueil", I: DashboardIcon },
+        { id: "orders", l: "Commandes", I: PackageIcon, b: myOrds.length || null },
+        { id: "messages", l: "Messages", I: MsgIcon, b: unread || null },
+        { id: "reviews", l: "Avis", I: StarIcon },
+        { id: "contact", l: "Contact", I: MailIcon },
+        { id: "profile", l: "Profil", I: UserIcon },
+    ];
+    const go = (t) => { setTab(t); setSelOrd(null); };
+    return React.createElement("div", { className: "min-h-screen bg-slate-50" }, 
+    // Header
+    React.createElement("header", { className: "sticky top-0 z-20 bg-white border-b border-slate-100" }, React.createElement("div", { className: "px-4 sm:px-6 h-16 flex items-center justify-between" }, React.createElement("div", { className: "flex items-center gap-3" }, React.createElement(CWLogo, { sm: true, onClick: goSite }), React.createElement("span", { className: "hidden sm:inline text-xs font-semibold text-slate-400 bg-slate-100 rounded-full px-2.5 py-0.5" }, "Espace client")), React.createElement("div", { className: "flex items-center gap-2" }, React.createElement(NotifsBtn, { aud: me.id }), React.createElement("button", { onClick: goSite, className: "inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-blue-600 rounded-full border border-slate-200 px-3 py-1.5 bg-white cursor-pointer transition" }, React.createElement(ArrowLeftIcon, { size: 14 }), React.createElement("span", { className: "hidden sm:inline" }, "Sortir")), React.createElement(Av, { name: me.firstName + " " + me.lastName, sz: 32 })))), 
+    // Layout
+    React.createElement("div", { className: "max-w-7xl mx-auto flex" }, 
+    // Sidebar desktop
+    React.createElement("aside", { className: "hidden lg:block w-56 shrink-0 p-3 border-r border-slate-100 min-h-screen" }, React.createElement("nav", { className: "space-y-0.5 sticky top-20" }, nav.map(n => React.createElement("button", {
+        key: n.id, onClick: () => go(n.id),
+        className: "w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition border-none cursor-pointer " +
+            (tab === n.id ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100 bg-transparent")
+    }, React.createElement(n.I, { size: 15 }), React.createElement("span", { className: "flex-1 text-left" }, n.l), n.b && React.createElement("span", {
+        className: "rounded-full font-bold",
+        style: { fontSize: 10, padding: "1px 5px", background: tab === n.id ? "rgba(255,255,255,0.2)" : "#E2E8F0", color: tab === n.id ? "#fff" : "#475569" }
+    }, n.b))))), 
+    // Main
+    React.createElement("main", { className: "flex-1 min-w-0 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8" }, tab === "overview" && React.createElement(ClientOverview, { myOrds, go, openOrd: o => { setSelOrd(o); go("orders"); }, onOrder }), tab === "orders" && (selOrd ? React.createElement(OrdDetail, { ord: selOrd, back: () => setSelOrd(null) }) : React.createElement(MyOrders, { myOrds, onOpen: o => setSelOrd(o), goSite })), tab === "messages" && React.createElement(MyMessages, null), tab === "reviews" && React.createElement(MyReviews, null), tab === "contact" && React.createElement(ClientContact, null), tab === "profile" && React.createElement(MyProfile, { goSite }))), 
+    // Bottom tab bar mobile
+    React.createElement("nav", { className: "lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 z-30 flex" }, nav.map(n => React.createElement("button", {
+        key: n.id, onClick: () => go(n.id),
+        className: "flex-1 flex flex-col items-center justify-center py-2 px-0.5 gap-0.5 relative border-none cursor-pointer",
+        style: { background: "transparent", color: tab === n.id ? "#2563EB" : "#94A3B8" }
+    }, React.createElement("div", { style: { position: "relative" } }, React.createElement(n.I, { size: 20 }), n.b && React.createElement("span", {
+        style: { position: "absolute", top: -4, right: -6, background: "#EF4444", color: "#fff",
+            borderRadius: "50%", fontSize: 8, fontWeight: 700, minWidth: 14, height: 14,
+            display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" }
+    }, n.b)), React.createElement("span", { style: { fontSize: 9, fontWeight: tab === n.id ? 700 : 400, lineHeight: 1 } }, n.l), tab === n.id && React.createElement("span", {
+        style: { position: "absolute", bottom: 0, left: "25%", right: "25%", height: 2, background: "#2563EB", borderRadius: "2px 2px 0 0" }
+    })))));
+}
+function ClientOverview({ myOrds, go, openOrd, onOrder }) {
+    const { me } = useData();
+    const active = myOrds.filter(o => ["Nouvelle", "En attente", "En cours"].includes(o.status)).length;
+    const total = myOrds.filter(o => o.status !== "Annulée").reduce((s, o) => s + o.price, 0);
+    const kpis = [
+        [myOrds.length, "Total commandes", "#2563EB", PackageIcon],
+        [active, "En cours", "#7C3AED", ActivityIcon],
+        [myOrds.filter(o => o.status === "Livrée").length, "Livrées", "#16A34A", TruckIcon],
+        [fmtM(total), "Total dépensé", "#0284C7", EuroIcon],
+    ];
+    return React.createElement("div", null, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Bonjour, " + me.firstName + " 👋"), React.createElement("p", { className: "text-slate-500 mt-1" }, "Aperçu de vos projets."), React.createElement("div", { className: "mt-6 grid grid-cols-2 lg:grid-cols-4 gap-4" }, kpis.map(([v, l, c, I]) => React.createElement("div", { key: l, className: "rounded-2xl bg-white border border-slate-100 p-5" }, React.createElement("div", { className: "flex items-center justify-between mb-2" }, React.createElement("span", { className: "text-xs text-slate-500" }, l), React.createElement("div", { className: "w-8 h-8 rounded-lg grid place-items-center", style: { background: c + "18" } }, React.createElement(I, { size: 14, style: { color: c } }))), React.createElement("p", { className: "text-xl font-extrabold text-slate-900" }, v)))), React.createElement("div", { className: "mt-6 rounded-2xl bg-white border border-slate-100 p-5" }, React.createElement("div", { className: "flex items-center justify-between mb-4" }, React.createElement("h2", { className: "font-bold text-slate-900" }, "Commandes récentes"), React.createElement("button", { onClick: () => go("orders"), className: "text-sm font-semibold text-blue-600 hover:underline bg-transparent border-none cursor-pointer" }, "Tout voir")), myOrds.length === 0
+        ? React.createElement("div", { className: "py-8 text-center" }, React.createElement("p", { className: "text-slate-400 text-sm mb-3" }, "Aucune commande pour l'instant."), React.createElement("button", { onClick: () => onOrder(null), className: BtnP }, "Commander un service"))
+        : React.createElement("div", { className: "space-y-2" }, myOrds.slice(0, 4).map(o => React.createElement("button", {
+            key: o.id, onClick: () => openOrd(o),
+            className: "w-full flex items-center justify-between gap-3 rounded-xl hover:bg-slate-50 p-2.5 text-left bg-transparent border-none cursor-pointer"
+        }, React.createElement("div", { className: "flex items-center gap-3 min-w-0" }, React.createElement("div", {
+            className: "w-9 h-9 rounded-lg grid place-items-center shrink-0",
+            style: { background: (SVC_COLOR[o.serviceId] || "#2563EB") + "18" }
+        }, React.createElement(PackageIcon, { size: 14, style: { color: SVC_COLOR[o.serviceId] || "#2563EB" } })), React.createElement("div", { className: "min-w-0" }, React.createElement("p", { className: "font-semibold text-sm text-slate-900 truncate" }, o.serviceName), React.createElement("p", { className: "text-xs text-slate-400" }, o.ref + " · " + fmtD(o.createdAt)))), React.createElement(SBadge, { status: o.status }))))));
+}
+function MyOrders({ myOrds, onOpen, goSite }) {
+    const [filt, setFilt] = React.useState("Tous");
+    const shown = filt === "Tous" ? myOrds : myOrds.filter(o => o.status === filt);
+    return React.createElement("div", null, React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-3" }, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Mes commandes"), React.createElement("button", { onClick: goSite, className: BtnP }, React.createElement(PlusIcon, { size: 14 }), "Nouvelle commande")), React.createElement("div", { className: "mt-4 flex flex-wrap gap-2" }, ["Tous", ...STATUSES].map(s => React.createElement("button", {
+        key: s, onClick: () => setFilt(s),
+        className: "text-xs font-semibold rounded-full px-3 py-1.5 transition border cursor-pointer " +
+            (filt === s ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300")
+    }, s))), shown.length === 0
+        ? React.createElement("div", { className: "mt-8 rounded-2xl border border-dashed border-slate-200 p-10 text-center" }, React.createElement(PackageIcon, { size: 34, className: "mx-auto text-slate-300 mb-3" }), React.createElement("p", { className: "text-slate-500 text-sm" }, "Aucune commande."), React.createElement("button", { onClick: goSite, className: BtnP + " mt-4" }, "Commander un service"))
+        : React.createElement("div", { className: "mt-5 grid sm:grid-cols-2 gap-4" }, shown.map(o => React.createElement("button", {
+            key: o.id, onClick: () => onOpen(o),
+            className: "text-left rounded-2xl bg-white border border-slate-100 p-5 hover:shadow-md hover:border-blue-200 transition cursor-pointer"
+        }, React.createElement("div", { className: "flex items-start justify-between" }, React.createElement("div", { className: "flex items-center gap-3" }, React.createElement("div", { className: "w-10 h-10 rounded-xl grid place-items-center", style: { background: (SVC_COLOR[o.serviceId] || "#2563EB") + "18" } }, React.createElement(PackageIcon, { size: 16, style: { color: SVC_COLOR[o.serviceId] || "#2563EB" } })), React.createElement("div", null, React.createElement("p", { className: "font-bold text-slate-900" }, o.serviceName), React.createElement("p", { className: "text-xs text-slate-400 font-mono" }, o.ref))), React.createElement(SBadge, { status: o.status })), React.createElement("p", { className: "mt-3 text-sm text-slate-500 overflow-hidden", style: { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } }, o.description), React.createElement("div", { className: "mt-3 flex justify-between text-sm" }, React.createElement("span", { className: "text-slate-400" }, fmtD(o.createdAt)), React.createElement("span", { className: "font-bold text-blue-700" }, fmtM(o.price)))))));
+}
+function OrdDetail({ ord, back }) {
+    const { me, cancelOrder, confirm, toast, messages, sendMsg, markRead } = useData();
+    const [st, setSt] = React.useState(ord.status);
+    const [chatText, setChatText] = React.useState("");
+    const endRef = React.useRef(null);
+    React.useEffect(() => { markRead(me.id, "client"); }, [me.id]);
+    const msgs = messages.filter(m => m.userId === me.id).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    React.useEffect(() => { var _a; (_a = endRef.current) === null || _a === void 0 ? void 0 : _a.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
+    const sendChat = () => { if (chatText.trim()) {
+        sendMsg(me.id, "client", chatText);
+        setChatText("");
+    } };
+    const tl = STATUSES.filter(s => s !== "Annulée");
+    const ci = tl.indexOf(st);
+    return React.createElement("div", null, React.createElement("button", {
+        onClick: back,
+        className: "flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900 mb-4 bg-transparent border-none cursor-pointer"
+    }, React.createElement(ArrowLeftIcon, { size: 13 }), "Retour"), React.createElement("div", { className: "rounded-2xl bg-white border border-slate-100 p-6" }, React.createElement("div", { className: "flex flex-wrap items-start justify-between gap-4" }, React.createElement("div", { className: "flex items-center gap-3" }, React.createElement("div", { className: "w-11 h-11 rounded-xl grid place-items-center", style: { background: (SVC_COLOR[ord.serviceId] || "#2563EB") + "18" } }, React.createElement(PackageIcon, { size: 18, style: { color: SVC_COLOR[ord.serviceId] || "#2563EB" } })), React.createElement("div", null, React.createElement("h2", { className: "text-xl font-bold text-slate-900" }, ord.serviceName), React.createElement("p", { className: "text-xs text-slate-400 font-mono" }, ord.ref))), React.createElement(SBadge, { status: st, big: true })), st !== "Annulée" && React.createElement("div", { className: "mt-7 flex items-center gap-0.5" }, tl.map((s, i) => {
+        const done = i <= ci;
+        return React.createElement("div", { key: s, className: "flex-1 flex flex-col items-center relative" }, i > 0 && React.createElement("div", {
+            className: "absolute top-4 right-1/2 w-full h-0.5",
+            style: { background: done ? "#2563EB" : "#E2E8F0" }
+        }), React.createElement("div", {
+            className: "relative z-10 w-8 h-8 rounded-full grid place-items-center",
+            style: { background: done ? "#2563EB" : "#F1F5F9", color: done ? "#fff" : "#9CA3AF" }
+        }, React.createElement(CheckIcon, { size: 12 })), React.createElement("span", { className: "mt-1 text-center leading-tight text-slate-500", style: { fontSize: 9 } }, s));
+    })), React.createElement("div", { className: "mt-6 grid sm:grid-cols-2 gap-4 text-sm" }, React.createElement("div", null, React.createElement("p", { className: "text-slate-400" }, "Montant"), React.createElement("p", { className: "font-bold text-blue-700 text-lg" }, fmtM(ord.price))), React.createElement("div", null, React.createElement("p", { className: "text-slate-400" }, "Commande le"), React.createElement("p", { className: "font-semibold text-slate-900" }, fmtD(ord.createdAt)))), React.createElement("div", { className: "mt-4" }, React.createElement("p", { className: "text-sm text-slate-400 mb-1.5" }, "Description"), React.createElement("p", { className: "text-sm text-slate-700 bg-slate-50 rounded-xl p-4 leading-relaxed" }, ord.description)), ["Nouvelle", "En attente"].includes(st) && React.createElement("div", { className: "mt-4" }, React.createElement("button", {
+        onClick: () => confirm({ title: "Annuler la commande ?", msg: "La commande sera annulée définitivement.", danger: true, okLabel: "Annuler la commande",
+            onOk: () => { cancelOrder(ord.id); setSt("Annulée"); toast("Commande annulée."); }
+        }),
+        className: "inline-flex items-center gap-2 rounded-full border border-red-200 text-red-600 px-5 py-2.5 text-sm font-semibold hover:bg-red-50 bg-transparent cursor-pointer"
+    }, React.createElement(XCircleIcon, { size: 14 }), "Annuler la commande"))), 
+    // Chat équipe
+    React.createElement("div", { className: "mt-4 rounded-2xl bg-white border border-slate-100 overflow-hidden" }, React.createElement("div", { className: "flex items-center gap-3 px-4 py-3.5 bg-slate-50 border-b border-slate-100" }, React.createElement("div", { className: "w-8 h-8 rounded-full grid place-items-center bg-blue-600 shrink-0" }, React.createElement(SparkIcon, { size: 14, color: "#fff" })), React.createElement("div", null, React.createElement("p", { className: "font-semibold text-sm text-slate-900" }, "Messages avec l'équipe CraftWeb"), React.createElement("p", { className: "text-xs text-emerald-500" }, "En ligne · réponse sous 24h"))), React.createElement("div", { className: "overflow-y-auto p-4 space-y-3", style: { maxHeight: 240 } }, msgs.length === 0 && React.createElement("p", { className: "text-center text-sm text-slate-400 py-6" }, "Posez vos questions ici — délais, modifications, précisions..."), msgs.map(m => {
+        const mine = m.sender === "client";
+        return React.createElement("div", { key: m.id, className: "flex " + (mine ? "justify-end" : "justify-start") }, React.createElement("div", {
+            className: "rounded-2xl px-4 py-2.5 " + (mine ? "rounded-br-sm" : "rounded-bl-sm"),
+            style: { maxWidth: "78%", background: mine ? "#2563EB" : "#fff", border: mine ? "none" : "1px solid #E2E8F0", color: mine ? "#fff" : "#1E293B" }
+        }, React.createElement("p", { className: "text-sm leading-relaxed" }, m.text), React.createElement("p", { className: "text-xs mt-0.5", style: { color: mine ? "#BFDBFE" : "#94A3B8" } }, tAgo(m.createdAt))));
+    }), React.createElement("div", { ref: endRef })), React.createElement("div", { className: "border-t border-slate-100 p-3 flex items-center gap-2 bg-white" }, React.createElement("input", {
+        value: chatText, onChange: e => setChatText(e.target.value),
+        onKeyDown: e => e.key === "Enter" && sendChat(),
+        placeholder: "Posez une question à l'équipe...",
+        className: "flex-1 rounded-full border border-slate-200 px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 bg-white"
+    }), React.createElement("button", {
+        onClick: sendChat,
+        className: "w-9 h-9 rounded-full bg-blue-600 text-white grid place-items-center hover:bg-blue-700 shrink-0 border-none cursor-pointer"
+    }, React.createElement(SendIcon, { size: 14 })))));
+}
+function MyMessages() {
+    const { me, messages, sendMsg, markRead } = useData();
+    const [text, setText] = React.useState("");
+    const endRef = React.useRef(null);
+    React.useEffect(() => { markRead(me.id, "client"); }, [me.id]);
+    const msgs = messages.filter(m => m.userId === me.id).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    React.useEffect(() => { var _a; (_a = endRef.current) === null || _a === void 0 ? void 0 : _a.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
+    const send = () => { if (text.trim()) {
+        sendMsg(me.id, "client", text);
+        setText("");
+    } };
+    return React.createElement("div", { className: "flex flex-col" }, React.createElement("h1", { className: "text-2xl font-bold text-slate-900 mb-1" }, "Messagerie"), React.createElement("p", { className: "text-slate-500 text-sm mb-4" }, "Échangez avec l'équipe CraftWeb."), React.createElement("div", { className: "rounded-2xl border border-slate-100 overflow-hidden flex flex-col bg-slate-50", style: { height: "55vh" } }, React.createElement("div", { className: "flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-100" }, React.createElement("div", { className: "w-9 h-9 rounded-full grid place-items-center bg-blue-600" }, React.createElement(SparkIcon, { size: 14, color: "#fff" })), React.createElement("div", null, React.createElement("p", { className: "font-semibold text-sm text-slate-900" }, "Équipe CraftWeb"), React.createElement("span", { className: "text-xs text-emerald-500" }, "En ligne"))), React.createElement("div", { className: "flex-1 overflow-y-auto p-4 space-y-3" }, msgs.length === 0 && React.createElement("p", { className: "text-center text-sm text-slate-400 py-8" }, "Démarrez la conversation."), msgs.map(m => {
+        const mine = m.sender === "client";
+        return React.createElement("div", { key: m.id, className: "flex " + (mine ? "justify-end" : "justify-start") }, React.createElement("div", {
+            className: "rounded-2xl px-4 py-2.5 " + (mine ? "rounded-br-sm" : "rounded-bl-sm"),
+            style: { maxWidth: "75%", background: mine ? "#2563EB" : "#fff", border: mine ? "none" : "1px solid #E2E8F0", color: mine ? "#fff" : "#1E293B" }
+        }, React.createElement("p", { className: "text-sm leading-relaxed" }, m.text), React.createElement("p", { className: "text-xs mt-0.5", style: { color: mine ? "#BFDBFE" : "#94A3B8" } }, tAgo(m.createdAt))));
+    }), React.createElement("div", { ref: endRef })), React.createElement("div", { className: "border-t border-slate-100 p-3 flex items-center gap-2 bg-white" }, React.createElement("input", {
+        value: text, onChange: e => setText(e.target.value), onKeyDown: e => e.key === "Enter" && send(),
+        placeholder: "Écrivez votre message...",
+        className: "flex-1 rounded-full border border-slate-200 px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 bg-white"
+    }), React.createElement("button", { onClick: send, className: "w-9 h-9 rounded-full bg-blue-600 grid place-items-center hover:bg-blue-700 border-none cursor-pointer" }, React.createElement(SendIcon, { size: 14, color: "#fff" })))));
+}
+function MyReviews() {
+    const { me, reviews, addReview, toast } = useData();
+    const mine = reviews.filter(r => r.userId === me.id);
+    const [svcId, setSvcId] = React.useState(SERVICES[0].id);
+    const [rating, setRating] = React.useState(5);
+    const [text, setText] = React.useState("");
+    const submit = () => {
+        if (!text.trim()) {
+            toast("Rédigez votre avis.", "err");
+            return;
+        }
+        const svc = SERVICES.find(x => x.id === svcId);
+        addReview({ userId: me.id, clientName: me.firstName + " " + me.lastName, serviceName: svc.name, rating, text: text.trim() });
+        setText("");
+        setRating(5);
+        toast("Avis envoyé — en attente de validation.");
+    };
+    return React.createElement("div", null, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Mes avis"), React.createElement("div", { className: "mt-6 grid lg:grid-cols-2 gap-6" }, React.createElement("div", { className: "rounded-2xl bg-white border border-slate-100 p-5" }, React.createElement("h2", { className: "font-bold text-slate-900 mb-4" }, "Laisser un avis"), React.createElement("div", { className: "space-y-4" }, React.createElement(Field, { label: "Service concerné" }, React.createElement("div", { style: { position: "relative" } }, React.createElement("select", {
+        className: inputCls(false) + " appearance-none pr-9",
+        value: svcId, onChange: e => setSvcId(e.target.value)
+    }, SERVICES.map(s => React.createElement("option", { key: s.id, value: s.id }, s.name))), React.createElement(ChevronDownIcon, { size: 13, style: { position: "absolute", right: 12, top: 12, color: "#94A3B8", pointerEvents: "none" } }))), React.createElement("div", null, React.createElement("label", { className: "block text-sm font-medium text-slate-700 mb-2" }, "Note"), React.createElement(Stars, { value: rating, size: 24, onChange: setRating })), React.createElement(Field, { label: "Votre avis" }, React.createElement("textarea", { rows: 4, className: inputCls(false), value: text, onChange: e => setText(e.target.value), placeholder: "Décrivez votre expérience..." })), React.createElement("button", { onClick: submit, className: BtnP + " w-full" }, React.createElement(StarIcon, { size: 13 }), "Publier"))), React.createElement("div", null, React.createElement("h2", { className: "font-bold text-slate-900 mb-4" }, "Mes avis (" + mine.length + ")"), mine.length === 0
+        ? React.createElement("p", { className: "text-sm text-slate-400" }, "Aucun avis encore.")
+        : React.createElement("div", { className: "space-y-3" }, mine.map(r => React.createElement("div", { key: r.id, className: "rounded-2xl bg-white border border-slate-100 p-4" }, React.createElement("div", { className: "flex items-center justify-between" }, React.createElement(Stars, { value: r.rating, size: 13 }), React.createElement("span", { className: "text-xs font-semibold rounded-full px-2.5 py-1 " + (r.approved ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600") }, r.approved ? "Publié" : "En attente")), React.createElement("p", { className: "mt-2 text-sm text-slate-700" }, r.text), React.createElement("p", { className: "mt-1.5 text-xs text-slate-400" }, r.serviceName + " · " + fmtD(r.createdAt))))))));
+}
+function ClientContact() {
+    const { me, toast } = useData();
+    const nom = me ? (me.firstName + " " + me.lastName) : "";
+    const [f, setF] = React.useState({ name: nom, email: (me === null || me === void 0 ? void 0 : me.email) || "", subject: "", message: "" });
+    const [sent, setSent] = React.useState(false);
+    const upd = (k, v) => setF(x => (Object.assign(Object.assign({}, x), { [k]: v })));
+    const send = () => {
+        if (!f.subject.trim() || !f.message.trim()) {
+            toast("Remplissez l'objet et le message.", "err");
+            return;
+        }
+        const body = "De : " + f.name + "\nEmail : " + f.email + "\n\n" + f.message;
+        window.open("mailto:CraftWeb.pro@icloud.com?subject=" + encodeURIComponent(f.subject) + "&body=" + encodeURIComponent(body), "_blank");
+        setSent(true);
+        toast("Votre messagerie s'est ouverte !");
+    };
+    if (sent)
+        return React.createElement("div", { className: "max-w-xl" }, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Nous contacter"), React.createElement("div", { className: "mt-8 rounded-2xl bg-emerald-50 border border-emerald-100 p-8 text-center" }, React.createElement(CheckCircleIcon, { size: 40, className: "text-emerald-500 mx-auto mb-4" }), React.createElement("h2", { className: "text-xl font-bold text-slate-900" }, "Message prêt !"), React.createElement("p", { className: "mt-2 text-slate-600" }, "Votre messagerie s'est ouverte avec le message pré-rempli vers CraftWeb.pro@icloud.com"), React.createElement("button", { onClick: () => setSent(false), className: BtnP + " mt-5" }, "Envoyer un autre message")));
+    return React.createElement("div", { className: "max-w-xl" }, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Nous contacter"), React.createElement("p", { className: "text-slate-500 mt-1" }, "Une question ou un besoin ? Écrivez-nous directement."), React.createElement("div", { className: "mt-6 rounded-2xl bg-white border border-slate-100 p-6" }, React.createElement("div", { className: "space-y-4" }, React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Votre nom" }, React.createElement("input", { className: inputCls(false), value: f.name, onChange: e => upd("name", e.target.value) })), React.createElement(Field, { label: "Votre email" }, React.createElement("input", { className: inputCls(false), value: f.email, onChange: e => upd("email", e.target.value), type: "email" }))), React.createElement(Field, { label: "Objet", req: true }, React.createElement("input", { className: inputCls(false), value: f.subject, onChange: e => upd("subject", e.target.value), placeholder: "Demande de devis, question..." })), React.createElement(Field, { label: "Message", req: true }, React.createElement("textarea", { rows: 5, className: inputCls(false), value: f.message, onChange: e => upd("message", e.target.value), placeholder: "Décrivez votre demande en détail..." }))), React.createElement("div", { className: "mt-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4" }, React.createElement("p", { className: "text-xs text-slate-400" }, "Envoi vers ", React.createElement("span", { className: "font-semibold text-slate-600" }, "CraftWeb.pro@icloud.com")), React.createElement("button", { onClick: send, className: BtnP }, React.createElement(MailIcon, { size: 14 }), "Envoyer"))));
+}
+function MyProfile({ goSite }) {
+    const { me, updateMe, logout, confirm, toast } = useData();
+    const [f, setF] = React.useState({ firstName: me.firstName, lastName: me.lastName, email: me.email, phone: me.phone || "", password: "" });
+    const [errs, setErrs] = React.useState({});
+    const s = (k, v) => { setF(x => (Object.assign(Object.assign({}, x), { [k]: v }))); setErrs(e => (Object.assign(Object.assign({}, e), { [k]: undefined }))); };
+    const save = () => {
+        const e = {};
+        if (!f.firstName.trim())
+            e.firstName = "Requis.";
+        if (!f.lastName.trim())
+            e.lastName = "Requis.";
+        if (!okEmail(f.email))
+            e.email = "Email invalide.";
+        if (f.password && f.password.length < 6)
+            e.password = "6 car. min.";
+        setErrs(e);
+        if (Object.keys(e).length) {
+            toast("Vérifiez le formulaire.", "err");
+            return;
+        }
+        const patch = { firstName: f.firstName, lastName: f.lastName, email: f.email, phone: f.phone };
+        if (f.password)
+            patch.password = f.password;
+        updateMe(patch);
+        setF(x => (Object.assign(Object.assign({}, x), { password: "" })));
+        toast("Profil mis à jour.");
+    };
+    return React.createElement("div", { className: "max-w-xl" }, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Mon profil"), React.createElement("div", { className: "mt-6 rounded-2xl bg-white border border-slate-100 p-6" }, React.createElement("div", { className: "flex items-center gap-4 mb-6" }, React.createElement(Av, { name: me.firstName + " " + me.lastName, sz: 52 }), React.createElement("div", null, React.createElement("p", { className: "font-bold text-slate-900 text-lg" }, me.firstName + " " + me.lastName), React.createElement("p", { className: "text-sm text-slate-400" }, "Client depuis " + fmtD(me.createdAt)))), React.createElement("div", { className: "space-y-4" }, React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Prénom", req: true, err: errs.firstName }, React.createElement("input", { className: inputCls(errs.firstName), value: f.firstName, onChange: e => s("firstName", e.target.value) })), React.createElement(Field, { label: "Nom", req: true, err: errs.lastName }, React.createElement("input", { className: inputCls(errs.lastName), value: f.lastName, onChange: e => s("lastName", e.target.value) }))), React.createElement(Field, { label: "Email", req: true, err: errs.email }, React.createElement("input", { className: inputCls(errs.email), value: f.email, onChange: e => s("email", e.target.value) })), React.createElement(Field, { label: "Téléphone" }, React.createElement("input", { className: inputCls(false), value: f.phone, onChange: e => s("phone", e.target.value) })), React.createElement(Field, { label: "Nouveau mot de passe", hint: "laisser vide pour garder", err: errs.password }, React.createElement("input", { type: "password", className: inputCls(errs.password), value: f.password, onChange: e => s("password", e.target.value), placeholder: "••••••••" }))), React.createElement("button", { onClick: save, className: BtnP + " mt-5" }, React.createElement(CheckIcon, { size: 13 }), "Enregistrer")), React.createElement("div", { className: "mt-4 rounded-2xl bg-white border border-slate-100 p-6" }, React.createElement("h2", { className: "font-bold text-slate-900 text-sm" }, "Session"), React.createElement("p", { className: "text-sm text-slate-400 mt-1 mb-4" }, "Vous déconnecter de votre espace client."), React.createElement("button", {
+        onClick: () => confirm({ title: "Se déconnecter ?", msg: "Vous reviendrez à l'accueil. Vos données restent sauvegardées.", okLabel: "Se déconnecter",
+            onOk: () => { logout(); if (goSite)
+                goSite(); } }),
+        className: "inline-flex items-center gap-2 rounded-full border border-red-200 text-red-600 px-5 py-2.5 text-sm font-semibold hover:bg-red-50 bg-white cursor-pointer transition"
+    }, React.createElement(LogOutIcon, { size: 15 }), "Déconnexion")));
+}
+// ── COMPOSANTS ADMIN ──────────────────────────────────────────────────────────
+function AdminNotifsBtn() {
+    const { openNotifs } = useData();
+    const { notifs } = useData();
+    const un = notifs.filter(n => n.audience === "admin" && !n.read).length;
+    return React.createElement("button", {
+        onClick: () => openNotifs("admin"),
+        style: { position: "relative", padding: 8, borderRadius: "50%", background: "transparent", border: "none", cursor: "pointer", color: "#475569", display: "flex", alignItems: "center" }
+    }, React.createElement(BellIcon, { size: 20 }), un > 0 && React.createElement("span", {
+        style: { position: "absolute", top: 2, right: 2, background: "#EF4444", color: "#fff", borderRadius: "50%", fontSize: 9, fontWeight: 700, minWidth: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }
+    }, un));
+}
+function AdminLogin({ onOk, onExit }) {
+    const [email, setEmail] = React.useState("");
+    const [pw, setPw] = React.useState("");
+    const [err, setErr] = React.useState("");
+    const submit = () => {
+        if (email.toLowerCase() === ADMIN_CREDS.email && pw === ADMIN_CREDS.password) {
+            onOk();
+            return;
+        }
+        setErr("Identifiants invalides.");
+    };
+    return React.createElement("div", { className: "min-h-screen grid lg:grid-cols-2" }, React.createElement("div", { className: "hidden lg:flex flex-col justify-between p-12 bg-slate-900" }, React.createElement(CWLogo, { white: true }), React.createElement("div", null, React.createElement("h2", { className: "text-4xl font-extrabold text-white leading-tight" }, "Console d'administration CraftWeb"), React.createElement("p", { className: "mt-4 text-slate-400 max-w-sm" }, "Pilotez commandes, clients, messagerie et avis depuis un seul endroit."), React.createElement("div", { className: "mt-8 grid grid-cols-3 gap-4" }, [[PackageIcon, "Commandes"], [UsersIcon, "Clients"], [TrendIcon, "Statistiques"]].map(([I, l]) => React.createElement("div", { key: l, className: "rounded-xl p-4", style: { background: "rgba(255,255,255,.05)" } }, React.createElement(I, { size: 20, color: "#fff" }), React.createElement("p", { className: "mt-2 text-sm text-slate-300 font-medium" }, l))))), React.createElement("p", { className: "text-slate-600 text-sm" }, "Accès réservé à l'équipe CraftWeb.")), React.createElement("div", { className: "flex items-center justify-center p-6 bg-white" }, React.createElement("div", { className: "w-full max-w-sm" }, React.createElement("div", { className: "lg:hidden mb-8" }, React.createElement(CWLogo)), React.createElement("span", { className: "inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold px-3 py-1.5 mb-5" }, React.createElement(ShieldIcon, { size: 12 }), "Administration"), React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Connexion"), React.createElement("p", { className: "text-slate-500 text-sm mt-1 mb-6" }, "Identifiez-vous pour accéder à la console."), err && React.createElement("div", { className: "mb-4 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-sm text-red-600" }, err), React.createElement("div", { className: "space-y-4" }, React.createElement("div", null, React.createElement("label", { className: "block text-sm font-medium text-slate-700 mb-1.5" }, "Email"), React.createElement("input", { value: email, onChange: e => { setEmail(e.target.value); setErr(""); }, placeholder: "admin@craftweb.pro", className: inputCls(false) })), React.createElement("div", null, React.createElement("label", { className: "block text-sm font-medium text-slate-700 mb-1.5" }, "Mot de passe"), React.createElement("input", { type: "password", value: pw, onChange: e => { setPw(e.target.value); setErr(""); }, onKeyDown: e => e.key === "Enter" && submit(), placeholder: "••••••••", className: inputCls(false) }))), React.createElement("button", { onClick: submit, className: BtnP + " w-full mt-5" }, "Se connecter"), onExit && React.createElement("button", { onClick: onExit, style: { width: "100%", marginTop: 12, fontSize: 14, color: "#64748B", background: "none", border: "none", cursor: "pointer" } }, "← Retour au site"))));
+}
+function AdminDashboardPage() {
+    const { orders, users, reviews } = useData();
+    const clients = users.filter(u => u.role !== "admin");
+    const revenue = orders.filter(o => o.status !== "Annulée").reduce((s, o) => s + o.price, 0);
+    const pending = orders.filter(o => ["Nouvelle", "En attente"].includes(o.status)).length;
+    const months = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+    const mData = months.map((m, i) => ({ m, n: orders.filter(o => new Date(o.createdAt).getMonth() === i).length }));
+    const sData = SERVICES.map(s => ({ name: s.name.replace("Site ", ""), v: orders.filter(o => o.serviceId === s.id).length })).filter(d => d.v > 0);
+    const PC = ["#2563EB", "#0284C7", "#1D4ED8", "#0369A1"];
+    return React.createElement("div", { className: "space-y-6" }, React.createElement("div", null, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Tableau de bord"), React.createElement("p", { className: "text-slate-500 mt-0.5" }, "Vue d'ensemble de l'activité.")), React.createElement("div", { className: "grid grid-cols-2 lg:grid-cols-4 gap-4" }, [[orders.length, "Commandes", "#2563EB", PackageIcon], [fmtM(revenue), "Revenus", "#0284C7", EuroIcon], [clients.length, "Clients", "#1D4ED8", UsersIcon], [pending, "En attente", "#D97706", ClockIcon]].map(([v, l, c, I]) => React.createElement("div", { key: l, className: "rounded-2xl bg-white border border-slate-100 p-5" }, React.createElement("div", { className: "flex items-center justify-between mb-2" }, React.createElement("span", { className: "text-xs text-slate-500" }, l), React.createElement("div", { className: "w-8 h-8 rounded-lg grid place-items-center", style: { background: c + "18" } }, React.createElement(I, { size: 14, style: { color: c } }))), React.createElement("p", { className: "text-xl font-extrabold text-slate-900" }, v)))), React.createElement("div", { className: "grid lg:grid-cols-3 gap-6" }, React.createElement("div", { className: "lg:col-span-2 rounded-2xl bg-white border border-slate-100 p-5" }, React.createElement("h3", { className: "font-bold text-slate-900 mb-4" }, "Commandes par mois"), React.createElement(Recharts.ResponsiveContainer || "div", { width: "100%", height: 170 }, React.createElement(Recharts.LineChart || "div", { data: mData }, React.createElement(Recharts.CartesianGrid || "div", { strokeDasharray: "3 3", stroke: "#F1F5F9" }), React.createElement(Recharts.XAxis || "div", { dataKey: "m", tick: { fontSize: 10 }, axisLine: false, tickLine: false }), React.createElement(Recharts.YAxis || "div", { tick: { fontSize: 10 }, axisLine: false, tickLine: false, allowDecimals: false }), React.createElement(Recharts.Tooltip || "div", { formatter: v => [v, "Commandes"] }), React.createElement(Recharts.Line || "div", { type: "monotone", dataKey: "n", stroke: "#2563EB", strokeWidth: 2.5, dot: { fill: "#2563EB", r: 3 } })))), sData.length > 0 && React.createElement("div", { className: "rounded-2xl bg-white border border-slate-100 p-5" }, React.createElement("h3", { className: "font-bold text-slate-900 mb-3" }, "Services"), React.createElement(Recharts.ResponsiveContainer || "div", { width: "100%", height: 140 }, React.createElement(Recharts.PieChart || "div", null, React.createElement(Recharts.Pie || "div", { data: sData, cx: "50%", cy: "50%", outerRadius: 60, dataKey: "v" }, sData.map((e, i) => React.createElement(Recharts.Cell || "div", { key: i, fill: PC[i % 4] }))), React.createElement(Recharts.Tooltip || "div"))), React.createElement("div", { className: "mt-2 space-y-1" }, sData.map((d, i) => React.createElement("div", { key: d.name, className: "flex items-center justify-between text-xs" }, React.createElement("span", { className: "flex items-center gap-1.5" }, React.createElement("span", { className: "w-2 h-2 rounded-full", style: { background: PC[i % 4] } }), d.name), React.createElement("span", { className: "font-bold text-slate-700" }, d.v)))))));
+}
+function AdminOrdersPage() {
+    const { orders, createOrder, updateOrder, updateStatus, deleteOrder, confirm, toast } = useData();
+    const [q, setQ] = React.useState("");
+    const [fSt, setFSt] = React.useState("Tous");
+    const [editing, setEditing] = React.useState(null);
+    const [creating, setCreating] = React.useState(false);
+    const [det, setDet] = React.useState(null);
+    const shown = orders.filter(o => {
+        const mq = !q || [o.clientName, o.ref, o.serviceName].join(" ").toLowerCase().includes(q.toLowerCase());
+        return mq && (fSt === "Tous" || o.status === fSt);
+    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const exportCSV = () => {
+        const rows = [["Ref", "Client", "Email", "Service", "Prix", "Statut", "Date"],
+            ...shown.map(o => [o.ref, o.clientName, o.email, o.serviceName, o.price, o.status, fmtD(o.createdAt)])];
+        const csv = rows.map(r => r.join(";")).join("\n");
+        const a = document.createElement("a");
+        a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+        a.download = "commandes.csv";
+        a.click();
+    };
+    function OForm({ ord, onClose }) {
+        const isNew = !(ord === null || ord === void 0 ? void 0 : ord.id);
+        const [f, setF] = React.useState({ firstName: (ord === null || ord === void 0 ? void 0 : ord.firstName) || "", lastName: (ord === null || ord === void 0 ? void 0 : ord.lastName) || "", email: (ord === null || ord === void 0 ? void 0 : ord.email) || "", phone: (ord === null || ord === void 0 ? void 0 : ord.phone) || "", serviceId: (ord === null || ord === void 0 ? void 0 : ord.serviceId) || SERVICES[0].id, status: (ord === null || ord === void 0 ? void 0 : ord.status) || "Nouvelle", description: (ord === null || ord === void 0 ? void 0 : ord.description) || "" });
+        const s = (k, v) => setF(x => (Object.assign(Object.assign({}, x), { [k]: v })));
+        const save = () => {
+            if (!f.firstName.trim() || !f.lastName.trim() || !f.email.trim()) {
+                toast("Champs requis.", "err");
+                return;
+            }
+            if (isNew) {
+                createOrder(f);
+                toast("Commande créée.");
+            }
+            else {
+                updateOrder(ord.id, f);
+                toast("Mis à jour.");
+            }
+            onClose();
+        };
+        return React.createElement(CWModal, { open: true, onClose, maxW: "max-w-xl" }, React.createElement("div", { className: "p-6" }, React.createElement("div", { className: "flex items-center justify-between mb-4" }, React.createElement("h3", { className: "text-xl font-bold text-slate-900" }, isNew ? "Nouvelle commande" : "Modifier"), React.createElement("button", { onClick: onClose, className: "p-2 hover:bg-slate-100 rounded-lg bg-transparent border-none cursor-pointer" }, React.createElement(XIcon, { size: 15 }))), React.createElement("div", { className: "space-y-4" }, React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Prénom", req: true }, React.createElement("input", { className: inputCls(false), value: f.firstName, onChange: e => s("firstName", e.target.value) })), React.createElement(Field, { label: "Nom", req: true }, React.createElement("input", { className: inputCls(false), value: f.lastName, onChange: e => s("lastName", e.target.value) }))), React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Email", req: true }, React.createElement("input", { className: inputCls(false), value: f.email, onChange: e => s("email", e.target.value) })), React.createElement(Field, { label: "Téléphone" }, React.createElement("input", { className: inputCls(false), value: f.phone, onChange: e => s("phone", e.target.value) }))), React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Service" }, React.createElement("div", { style: { position: "relative" } }, React.createElement("select", { className: inputCls(false) + " appearance-none pr-8", value: f.serviceId, onChange: e => s("serviceId", e.target.value) }, SERVICES.map(x => React.createElement("option", { key: x.id, value: x.id }, x.name))), React.createElement(ChevronDownIcon, { size: 13, style: { position: "absolute", right: 10, top: 12, color: "#94A3B8", pointerEvents: "none" } }))), React.createElement(Field, { label: "Statut" }, React.createElement("div", { style: { position: "relative" } }, React.createElement("select", { className: inputCls(false) + " appearance-none pr-8", value: f.status, onChange: e => s("status", e.target.value) }, STATUSES.map(x => React.createElement("option", { key: x }, x))), React.createElement(ChevronDownIcon, { size: 13, style: { position: "absolute", right: 10, top: 12, color: "#94A3B8", pointerEvents: "none" } })))), React.createElement(Field, { label: "Description" }, React.createElement("textarea", { rows: 3, className: inputCls(false), value: f.description, onChange: e => s("description", e.target.value) }))), React.createElement("div", { className: "flex gap-3 mt-5" }, React.createElement("button", { onClick: onClose, className: BtnG + " flex-1" }, "Annuler"), React.createElement("button", { onClick: save, className: BtnP + " flex-1" }, React.createElement(CheckIcon, { size: 13 }), isNew ? "Créer" : "Enregistrer"))));
+    }
+    return React.createElement("div", null, React.createElement("div", { className: "flex flex-wrap items-center justify-between gap-3 mb-5" }, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Commandes"), React.createElement("div", { className: "flex gap-2" }, React.createElement("button", { onClick: exportCSV, className: BtnG }, React.createElement(DownloadIcon, { size: 13 }), "CSV"), React.createElement("button", { onClick: () => { setEditing(null); setCreating(true); }, className: BtnP }, React.createElement(PlusIcon, { size: 13 }), "Nouvelle"))), React.createElement("div", { className: "flex flex-wrap gap-3 mb-4" }, React.createElement("div", { className: "relative flex-1", style: { minWidth: 180 } }, React.createElement(SearchIcon, { size: 13, style: { position: "absolute", left: 14, top: 12, color: "#94A3B8" } }), React.createElement("input", { value: q, onChange: e => setQ(e.target.value), placeholder: "Rechercher...", className: inputCls(false) + " pl-9" })), React.createElement("div", { style: { position: "relative" } }, React.createElement("select", { className: inputCls(false) + " appearance-none pr-8", style: { minWidth: 140 }, value: fSt, onChange: e => setFSt(e.target.value) }, React.createElement("option", { value: "Tous" }, "Tous les statuts"), STATUSES.map(s => React.createElement("option", { key: s }, s))), React.createElement(ChevronDownIcon, { size: 13, style: { position: "absolute", right: 10, top: 12, color: "#94A3B8", pointerEvents: "none" } }))), React.createElement("div", { className: "rounded-2xl bg-white border border-slate-100 overflow-hidden" }, React.createElement("div", { className: "overflow-x-auto" }, React.createElement("table", { className: "w-full text-sm" }, React.createElement("thead", null, React.createElement("tr", { className: "border-b border-slate-100 bg-slate-50" }, ["Réf", "Client", "Service", "Montant", "Statut", "Date", ""].map(h => React.createElement("th", { key: h, className: "px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap" }, h)))), React.createElement("tbody", { className: "divide-y divide-slate-50" }, shown.length === 0 && React.createElement("tr", null, React.createElement("td", { colSpan: 7, className: "px-4 py-10 text-center text-slate-400" }, "Aucune commande")), shown.map(o => React.createElement("tr", { key: o.id, className: "hover:bg-slate-50 cursor-pointer", onClick: () => setDet(o) }, React.createElement("td", { className: "px-4 py-3 font-mono text-xs font-bold text-blue-600" }, o.ref), React.createElement("td", { className: "px-4 py-3" }, React.createElement("div", { className: "flex items-center gap-2" }, React.createElement(Av, { name: o.clientName, sz: 28 }), React.createElement("div", null, React.createElement("p", { className: "font-semibold text-slate-900 whitespace-nowrap" }, o.clientName), React.createElement("p", { className: "text-xs text-slate-400" }, o.email)))), React.createElement("td", { className: "px-4 py-3 text-slate-700 whitespace-nowrap" }, o.serviceName), React.createElement("td", { className: "px-4 py-3 font-bold text-blue-700 whitespace-nowrap" }, fmtM(o.price)), React.createElement("td", { className: "px-4 py-3" }, React.createElement(SBadge, { status: o.status })), React.createElement("td", { className: "px-4 py-3 text-slate-400 text-xs whitespace-nowrap" }, fmtD(o.createdAt)), React.createElement("td", { className: "px-4 py-3", onClick: e => e.stopPropagation() }, React.createElement("div", { className: "flex gap-1" }, React.createElement("button", { onClick: () => setEditing(o), className: "p-1.5 hover:bg-blue-50 hover:text-blue-600 rounded-lg text-slate-400 bg-transparent border-none cursor-pointer" }, React.createElement(PencilIcon, { size: 12 })), React.createElement("button", { onClick: () => confirm({ title: "Supprimer ?", msg: "Action irréversible.", danger: true, okLabel: "Supprimer", onOk: () => deleteOrder(o.id) }), className: "p-1.5 hover:bg-red-50 hover:text-red-500 rounded-lg text-slate-400 bg-transparent border-none cursor-pointer" }, React.createElement(TrashIcon, { size: 12 })))))))))), (creating || editing) && React.createElement(OForm, { ord: editing, onClose: () => { setEditing(null); setCreating(false); } }), det && React.createElement(CWModal, { open: true, onClose: () => setDet(null), maxW: "max-w-lg" }, React.createElement("div", { className: "p-6" }, React.createElement("div", { className: "flex items-center justify-between mb-4" }, React.createElement("h3", { className: "text-xl font-bold text-slate-900" }, "Détail commande"), React.createElement("button", { onClick: () => setDet(null), className: "p-2 hover:bg-slate-100 rounded-lg bg-transparent border-none cursor-pointer" }, React.createElement(XIcon, { size: 15 }))), React.createElement("div", { className: "space-y-2.5 text-sm" }, [["Référence", React.createElement("span", { className: "font-mono font-bold text-blue-600" }, det.ref)], ["Client", det.clientName], ["Email", det.email], ["Service", det.serviceName], ["Montant", React.createElement("span", { className: "font-bold text-blue-700" }, fmtM(det.price))], ["Statut", React.createElement(SBadge, { status: det.status })]].map(([k, v]) => React.createElement("div", { key: k, className: "flex justify-between items-center" }, React.createElement("span", { className: "text-slate-500" }, k), React.createElement("span", null, v))), React.createElement("div", null, React.createElement("p", { className: "text-slate-500 mb-1.5" }, "Description"), React.createElement("p", { className: "text-slate-700 bg-slate-50 rounded-xl p-3 leading-relaxed text-sm" }, det.description || "—"))), React.createElement("div", { className: "mt-5" }, React.createElement("p", { className: "text-sm font-semibold text-slate-700 mb-2" }, "Changer le statut"), React.createElement("div", { className: "flex flex-wrap gap-2" }, STATUSES.map(st => React.createElement("button", { key: st, onClick: () => { updateStatus(det.id, st); setDet(d => (Object.assign(Object.assign({}, d), { status: st }))); toast("Statut : " + st); },
+        className: "text-xs font-semibold rounded-full px-3 py-1.5 transition border cursor-pointer " +
+            (det.status === st ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300") }, st)))), React.createElement("div", { className: "flex gap-2 mt-5" }, React.createElement("button", { onClick: () => { setDet(null); setEditing(det); }, className: BtnG + " flex-1" }, React.createElement(PencilIcon, { size: 12 }), "Modifier"), React.createElement("button", { onClick: () => setDet(null), className: BtnP + " flex-1" }, "Fermer")))));
+}
+function AdminUsersPage() {
+    const { users, orders, addUser, updateUser, deleteUser, confirm, toast } = useData();
+    const [q, setQ] = React.useState("");
+    const [editing, setEditing] = React.useState(null);
+    const [creating, setCreating] = React.useState(false);
+    const clients = users.filter(u => u.role !== "admin").filter(u => !q || [u.firstName, u.lastName, u.email].join(" ").toLowerCase().includes(q.toLowerCase()));
+    function UForm({ user, onClose }) {
+        const isNew = !(user === null || user === void 0 ? void 0 : user.id);
+        const [f, setF] = React.useState({ firstName: (user === null || user === void 0 ? void 0 : user.firstName) || "", lastName: (user === null || user === void 0 ? void 0 : user.lastName) || "", email: (user === null || user === void 0 ? void 0 : user.email) || "", phone: (user === null || user === void 0 ? void 0 : user.phone) || "", password: "" });
+        const s = (k, v) => setF(x => (Object.assign(Object.assign({}, x), { [k]: v })));
+        const save = () => {
+            if (!f.firstName.trim() || !f.lastName.trim() || !f.email.trim()) {
+                toast("Champs requis.", "err");
+                return;
+            }
+            if (isNew) {
+                addUser(f);
+                toast("Utilisateur créé.");
+            }
+            else {
+                updateUser(user.id, f);
+                toast("Mis à jour.");
+            }
+            onClose();
+        };
+        return React.createElement(CWModal, { open: true, onClose, maxW: "max-w-md" }, React.createElement("div", { className: "p-6" }, React.createElement("div", { className: "flex items-center justify-between mb-4" }, React.createElement("h3", { className: "text-xl font-bold text-slate-900" }, isNew ? "Nouvel utilisateur" : "Modifier"), React.createElement("button", { onClick: onClose, className: "p-2 hover:bg-slate-100 rounded-lg bg-transparent border-none cursor-pointer" }, React.createElement(XIcon, { size: 15 }))), React.createElement("div", { className: "space-y-4" }, React.createElement("div", { className: "grid grid-cols-2 gap-3" }, React.createElement(Field, { label: "Prénom", req: true }, React.createElement("input", { className: inputCls(false), value: f.firstName, onChange: e => s("firstName", e.target.value) })), React.createElement(Field, { label: "Nom", req: true }, React.createElement("input", { className: inputCls(false), value: f.lastName, onChange: e => s("lastName", e.target.value) }))), React.createElement(Field, { label: "Email", req: true }, React.createElement("input", { className: inputCls(false), value: f.email, onChange: e => s("email", e.target.value) })), React.createElement(Field, { label: "Téléphone" }, React.createElement("input", { className: inputCls(false), value: f.phone, onChange: e => s("phone", e.target.value) })), React.createElement(Field, { label: "Mot de passe" }, React.createElement("input", { type: "password", className: inputCls(false), value: f.password, onChange: e => s("password", e.target.value), placeholder: "••••••••" }))), React.createElement("div", { className: "flex gap-3 mt-5" }, React.createElement("button", { onClick: onClose, className: BtnG + " flex-1" }, "Annuler"), React.createElement("button", { onClick: save, className: BtnP + " flex-1" }, React.createElement(CheckIcon, { size: 13 }), isNew ? "Créer" : "Enregistrer"))));
+    }
+    return React.createElement("div", null, React.createElement("div", { className: "flex items-center justify-between gap-3 mb-5" }, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Utilisateurs"), React.createElement("button", { onClick: () => { setEditing(null); setCreating(true); }, className: BtnP }, React.createElement(PlusIcon, { size: 13 }), "Nouveau")), React.createElement("div", { className: "relative mb-4", style: { maxWidth: 300 } }, React.createElement(SearchIcon, { size: 13, style: { position: "absolute", left: 14, top: 12, color: "#94A3B8" } }), React.createElement("input", { value: q, onChange: e => setQ(e.target.value), placeholder: "Rechercher...", className: inputCls(false) + " pl-9" })), React.createElement("div", { className: "rounded-2xl bg-white border border-slate-100 overflow-hidden" }, React.createElement("table", { className: "w-full text-sm" }, React.createElement("thead", null, React.createElement("tr", { className: "border-b border-slate-100 bg-slate-50" }, ["Client", "Email", "Commandes", "Inscription", ""].map(h => React.createElement("th", { key: h, className: "px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide" }, h)))), React.createElement("tbody", { className: "divide-y divide-slate-50" }, clients.length === 0 && React.createElement("tr", null, React.createElement("td", { colSpan: 5, className: "px-4 py-10 text-center text-slate-400" }, "Aucun utilisateur")), clients.map(u => {
+        const n = orders.filter(o => o.userId === u.id || o.email === u.email).length;
+        return React.createElement("tr", { key: u.id, className: "hover:bg-slate-50" }, React.createElement("td", { className: "px-4 py-3" }, React.createElement("div", { className: "flex items-center gap-3" }, React.createElement(Av, { name: u.firstName + " " + u.lastName, sz: 30 }), React.createElement("span", { className: "font-semibold text-slate-900" }, u.firstName + " " + u.lastName))), React.createElement("td", { className: "px-4 py-3 text-slate-600" }, u.email), React.createElement("td", { className: "px-4 py-3 font-bold text-blue-700" }, n), React.createElement("td", { className: "px-4 py-3 text-slate-400 text-xs" }, fmtD(u.createdAt)), React.createElement("td", { className: "px-4 py-3" }, React.createElement("div", { className: "flex gap-1" }, React.createElement("button", { onClick: () => setEditing(u), className: "p-1.5 hover:bg-blue-50 hover:text-blue-600 rounded-lg text-slate-400 bg-transparent border-none cursor-pointer" }, React.createElement(PencilIcon, { size: 12 })), React.createElement("button", { onClick: () => confirm({ title: "Supprimer ?", msg: u.firstName + " sera supprimé.", danger: true, okLabel: "Supprimer", onOk: () => deleteUser(u.id) }), className: "p-1.5 hover:bg-red-50 hover:text-red-500 rounded-lg text-slate-400 bg-transparent border-none cursor-pointer" }, React.createElement(TrashIcon, { size: 12 })))));
+    })))), (creating || editing) && React.createElement(UForm, { user: editing, onClose: () => { setEditing(null); setCreating(false); } }));
+}
+function AdminMessagesPage() {
+    const { users, messages, sendMsg, markConvRead } = useData();
+    const [sel, setSel] = React.useState(null);
+    const [text, setText] = React.useState("");
+    const endRef = React.useRef(null);
+    const convUsers = users.filter(u => u.role !== "admin" && messages.some(m => m.userId === u.id));
+    const selMsgs = sel ? messages.filter(m => m.userId === sel.id).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) : [];
+    React.useEffect(() => { if (sel)
+        markConvRead(sel.id); }, [sel === null || sel === void 0 ? void 0 : sel.id]);
+    React.useEffect(() => { var _a; (_a = endRef.current) === null || _a === void 0 ? void 0 : _a.scrollIntoView({ behavior: "smooth" }); }, [selMsgs.length]);
+    const send = () => { if (text.trim() && sel) {
+        sendMsg(sel.id, "agency", text);
+        setText("");
+    } };
+    return React.createElement("div", { className: "flex rounded-2xl bg-white border border-slate-100 overflow-hidden", style: { height: "calc(100vh - 140px)" } }, React.createElement("div", { className: "w-56 shrink-0 border-r border-slate-100 flex flex-col" }, React.createElement("div", { className: "px-4 py-3.5 border-b border-slate-100 flex items-center justify-between" }, React.createElement("p", { className: "font-bold text-slate-900" }, "Conversations"), React.createElement("span", { className: "flex items-center gap-1.5 text-xs text-emerald-600 font-semibold" }, React.createElement("span", { className: "w-2 h-2 rounded-full bg-emerald-500" }), "Temps réel")), React.createElement("div", { className: "flex-1 overflow-y-auto" }, convUsers.length === 0 && React.createElement("p", { className: "p-6 text-sm text-slate-400 text-center" }, "Aucune conversation"), convUsers.map(u => {
+        const last = messages.filter(m => m.userId === u.id).at(-1);
+        const unr = messages.filter(m => m.userId === u.id && m.sender === "client" && !m.read).length;
+        return React.createElement("button", { key: u.id, onClick: () => setSel(u), className: "w-full text-left px-3 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer bg-transparent border-none " + ((sel === null || sel === void 0 ? void 0 : sel.id) === u.id ? "bg-blue-50" : "") }, React.createElement("div", { className: "flex items-center gap-2.5" }, React.createElement(Av, { name: u.firstName + " " + u.lastName, sz: 30 }), React.createElement("div", { className: "min-w-0 flex-1" }, React.createElement("div", { className: "flex items-center justify-between gap-1" }, React.createElement("p", { className: "font-semibold text-sm text-slate-900 truncate" }, u.firstName + " " + u.lastName), unr > 0 && React.createElement("span", { className: "bg-blue-600 text-white rounded-full font-bold shrink-0", style: { fontSize: 9, padding: "1px 4px" } }, unr)), React.createElement("p", { className: "text-xs text-slate-400 truncate" }, last ? last.text : "—"))));
+    }))), React.createElement("div", { className: "flex-1 flex flex-col" }, !sel
+        ? React.createElement("div", { className: "flex-1 grid place-items-center" }, React.createElement("div", { className: "text-center" }, React.createElement(MsgIcon, { size: 34, className: "mx-auto mb-3 text-slate-200" }), React.createElement("p", { className: "text-sm text-slate-400" }, "Sélectionnez une conversation")))
+        : React.createElement(React.Fragment, null, React.createElement("div", { className: "flex items-center gap-3 px-4 py-3 border-b border-slate-100" }, React.createElement(Av, { name: sel.firstName + " " + sel.lastName, sz: 32 }), React.createElement("div", null, React.createElement("p", { className: "font-bold text-sm text-slate-900" }, sel.firstName + " " + sel.lastName), React.createElement("p", { className: "text-xs text-slate-400" }, sel.email))), React.createElement("div", { className: "flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50" }, selMsgs.map(m => {
+            const mine = m.sender === "agency";
+            return React.createElement("div", { key: m.id, className: "flex " + (mine ? "justify-end" : "justify-start") }, React.createElement("div", { className: "rounded-2xl px-4 py-2.5 " + (mine ? "rounded-br-sm" : "rounded-bl-sm"), style: { maxWidth: "75%", background: mine ? "#2563EB" : "#fff", border: mine ? "none" : "1px solid #E2E8F0", color: mine ? "#fff" : "#1E293B" } }, React.createElement("p", { className: "text-sm" }, m.text), React.createElement("p", { className: "text-xs mt-0.5", style: { color: mine ? "#BFDBFE" : "#94A3B8" } }, tAgo(m.createdAt))));
+        }), React.createElement("div", { ref: endRef })), React.createElement("div", { className: "border-t border-slate-100 p-3 flex items-center gap-2 bg-white" }, React.createElement("input", { value: text, onChange: e => setText(e.target.value), onKeyDown: e => e.key === "Enter" && send(), placeholder: "Répondre...", className: "flex-1 rounded-full border border-slate-200 px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 bg-white" }), React.createElement("button", { onClick: send, className: "w-9 h-9 rounded-full bg-blue-600 grid place-items-center hover:bg-blue-700 border-none cursor-pointer" }, React.createElement(SendIcon, { size: 14, color: "#fff" }))))));
+}
+function AdminReviewsPage() {
+    const { reviews, approveReview, deleteReview, confirm, toast } = useData();
+    const [tab, setTab] = React.useState("pending");
+    const shown = tab === "all" ? reviews : reviews.filter(r => tab === "pending" ? !r.approved : r.approved);
+    return React.createElement("div", null, React.createElement("h1", { className: "text-2xl font-bold text-slate-900" }, "Avis clients"), React.createElement("div", { className: "flex gap-2 mt-4 mb-5" }, [["pending", "En attente"], ["approved", "Publiés"], ["all", "Tous"]].map(([k, l]) => React.createElement("button", { key: k, onClick: () => setTab(k), className: "text-sm font-semibold rounded-full px-4 py-1.5 transition border cursor-pointer " + (tab === k ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300") }, l))), shown.length === 0
+        ? React.createElement("p", { className: "text-sm text-slate-400" }, "Aucun avis.")
+        : React.createElement("div", { className: "grid md:grid-cols-2 gap-4" }, shown.map(r => React.createElement("div", { key: r.id, className: "rounded-2xl bg-white border border-slate-100 p-5" }, React.createElement("div", { className: "flex items-start justify-between gap-3" }, React.createElement("div", { className: "flex items-center gap-3" }, React.createElement(Av, { name: r.clientName, sz: 34 }), React.createElement("div", null, React.createElement("p", { className: "font-bold text-slate-900" }, r.clientName), React.createElement(Stars, { value: r.rating }))), React.createElement("span", { className: "text-xs font-semibold rounded-full px-2.5 py-1 shrink-0 " + (r.approved ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600") }, r.approved ? "Publié" : "En attente")), React.createElement("p", { className: "mt-3 text-slate-700 text-sm leading-relaxed" }, r.text), React.createElement("p", { className: "mt-1.5 text-xs text-slate-400" }, r.serviceName + " · " + fmtD(r.createdAt)), React.createElement("div", { className: "mt-4 flex gap-2" }, !r.approved && React.createElement("button", { onClick: () => { approveReview(r.id, true); toast("Avis publié."); }, className: BtnP + " text-xs px-3 py-2" }, React.createElement(CheckCircleIcon, { size: 12 }), "Publier"), r.approved && React.createElement("button", { onClick: () => { approveReview(r.id, false); toast("Avis dépublié."); }, className: BtnG + " text-xs px-3 py-2" }, "Dépublier"), React.createElement("button", { onClick: () => confirm({ title: "Supprimer l'avis ?", msg: "Action irréversible.", danger: true, okLabel: "Supprimer", onOk: () => deleteReview(r.id) }), className: "inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 px-3 py-2 rounded-full border border-red-100 hover:bg-red-50 cursor-pointer bg-transparent" }, React.createElement(TrashIcon, { size: 12 }), "Supprimer"))))));
+}
+function AdminShell({ onLogout, onExit }) {
+    var _a;
+    const { messages, reviews } = useData();
+    const [tab, setTab] = React.useState("dashboard");
+    const unrdMsg = messages.filter(m => m.sender === "client" && !m.read).length;
+    const pendRev = reviews.filter(r => !r.approved).length;
+    const nav = [
+        { id: "dashboard", l: "Bord", full: "Tableau de bord", I: DashboardIcon },
+        { id: "orders", l: "Commandes", full: "Commandes", I: PackageIcon },
+        { id: "users", l: "Clients", full: "Utilisateurs", I: UsersIcon },
+        { id: "messages", l: "Messages", full: "Messagerie", I: MsgIcon, b: unrdMsg || null },
+        { id: "reviews", l: "Avis", full: "Avis clients", I: StarIcon, b: pendRev || null },
+    ];
+    const go = (t) => setTab(t);
+    return React.createElement("div", { className: "min-h-screen bg-slate-50 flex" }, 
+    // Sidebar desktop uniquement
+    React.createElement("aside", { className: "hidden lg:flex w-64 bg-slate-900 text-slate-300 flex-col shrink-0" }, React.createElement("div", { className: "h-16 flex items-center px-5 border-b border-slate-800" }, React.createElement(CWLogo, { white: true, sm: true })), React.createElement("div", { className: "px-3 pt-3 pb-1" }, React.createElement("span", { style: { color: "#64748B", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" } }, "Administration")), React.createElement("nav", { className: "flex-1 p-3 space-y-0.5" }, nav.map(n => React.createElement("button", { key: n.id, onClick: () => go(n.id),
+        className: "w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition border-none cursor-pointer " +
+            (tab === n.id ? "bg-blue-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white bg-transparent")
+    }, React.createElement(n.I, { size: 15 }), React.createElement("span", { className: "flex-1 text-left" }, n.full), n.b && React.createElement("span", { className: "rounded-full font-bold " + (tab === n.id ? "bg-white bg-opacity-20" : "bg-blue-500 text-white"), style: { fontSize: 10, padding: "1px 5px" } }, n.b)))), React.createElement("div", { className: "p-3 border-t border-slate-800 space-y-0.5" }, onExit && React.createElement("button", { onClick: onExit, className: "w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition bg-transparent border-none cursor-pointer" }, React.createElement(ArrowLeftIcon, { size: 15 }), "Retour au site"), React.createElement("button", { onClick: onLogout, className: "w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm text-slate-400 hover:bg-slate-800 hover:text-red-400 transition bg-transparent border-none cursor-pointer" }, React.createElement(LogOutIcon, { size: 15 }), "Déconnexion"))), 
+    // Zone principale
+    React.createElement("div", { className: "flex-1 min-w-0 flex flex-col" }, React.createElement("header", { className: "h-16 bg-white border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-20" }, React.createElement("div", { className: "flex items-center gap-2" }, React.createElement("div", { className: "lg:hidden" }, React.createElement(CWLogo, { sm: true })), React.createElement("h2", { className: "hidden lg:block font-bold text-slate-900" }, ((_a = nav.find(n => n.id === tab)) === null || _a === void 0 ? void 0 : _a.full) || "")), React.createElement("div", { className: "flex items-center gap-2" }, React.createElement(AdminNotifsBtn), onExit && React.createElement("button", { onClick: onExit, className: "lg:hidden text-xs text-slate-500 px-2 bg-transparent border-none cursor-pointer" }, "Site"), React.createElement("div", { className: "w-9 h-9 rounded-full grid place-items-center bg-blue-600 text-white font-bold text-sm" }, "A"), React.createElement("button", { onClick: onLogout, className: "lg:hidden p-2 text-slate-400 hover:text-red-500 bg-transparent border-none cursor-pointer" }, React.createElement(LogOutIcon, { size: 17 })))), React.createElement("main", { className: "flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8" }, tab === "dashboard" && React.createElement(AdminDashboardPage), tab === "orders" && React.createElement(AdminOrdersPage), tab === "users" && React.createElement(AdminUsersPage), tab === "messages" && React.createElement(AdminMessagesPage), tab === "reviews" && React.createElement(AdminReviewsPage)), 
+    // Barre d'onglets mobile (toujours visible)
+    React.createElement("nav", { className: "lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 flex", style: { paddingBottom: "env(safe-area-inset-bottom)" } }, nav.map(n => React.createElement("button", { key: n.id, onClick: () => go(n.id),
+        className: "flex-1 flex flex-col items-center justify-center py-2 px-0.5 gap-0.5 relative border-none cursor-pointer",
+        style: { background: "transparent", color: tab === n.id ? "#2563EB" : "#94A3B8", minHeight: 56 }
+    }, React.createElement("div", { style: { position: "relative" } }, React.createElement(n.I, { size: 20 }), n.b && React.createElement("span", { style: { position: "absolute", top: -4, right: -6, background: "#EF4444", color: "#fff", borderRadius: "50%", fontSize: 8, fontWeight: 700, minWidth: 14, height: 14, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 2px" } }, n.b)), React.createElement("span", { style: { fontSize: 9, fontWeight: tab === n.id ? 700 : 400, lineHeight: 1 } }, n.l), tab === n.id && React.createElement("span", { style: { position: "absolute", top: 0, left: "30%", right: "30%", height: 2, background: "#2563EB", borderRadius: "0 0 2px 2px" } }))))));
+}
+function ClientApp({ onExit }) {
+    const { me } = useData();
+    const [route, setRoute] = React.useState("site");
+    const [detailSvc, setDetailSvc] = React.useState(null);
+    const [orderOpen, setOrderOpen] = React.useState(false);
+    const [orderSvcId, setOrderSvcId] = React.useState(null);
+    const [authOpen, setAuthOpen] = React.useState(false);
+    const [authMode, setAuthMode] = React.useState("login");
+    const [pendingSvc, setPendingSvc] = React.useState(null);
+    const [initTab, setInitTab] = React.useState("overview");
+    const openOrder = (svcId) => {
+        if (svcId) {
+            openStripe(svcId);
+            return;
+        }
+        // Bouton générique (sans offre précise) : amener l'utilisateur à choisir une offre
+        setRoute("site");
+        setTimeout(function () {
+            var el = document.getElementById("services");
+            if (el) el.scrollIntoView({ behavior: "smooth" });
+            else window.scrollTo({ top: 0 });
+        }, 50);
+    };
+    const onAuthOk = () => {
+        setAuthOpen(false);
+        if (pendingSvc !== null) {
+            setOrderSvcId(pendingSvc);
+            setOrderOpen(true);
+            setPendingSvc(null);
+        }
+    };
+    const goDash = (tab) => {
+        if (me) {
+            setInitTab(tab || "overview");
+            setRoute("dashboard");
+            window.scrollTo({ top: 0 });
+        }
+        else {
+            setAuthMode("login");
+            setAuthOpen(true);
+        }
+    };
+    if (route === "dashboard" && me)
+        return React.createElement(ClientDashboard, { goSite: () => { setRoute("site"); window.scrollTo({ top: 0 }); }, onOrder: openOrder, initialTab: initTab });
+    return React.createElement("div", { className: "bg-white" }, React.createElement(PublicNav, { onOrder: openOrder, onAuth: mode => { setAuthMode(mode); setAuthOpen(true); }, onDash: goDash }), React.createElement(Hero, { onOrder: openOrder }), React.createElement(ServicesSection, { onOrder: openOrder, onDetail: s => setDetailSvc(s) }), React.createElement(Methode), React.createElement(Temoignages), React.createElement(FAQSection), React.createElement("div", { className: "py-12 px-4" }, React.createElement("div", { className: "max-w-5xl mx-auto rounded-3xl px-8 py-14 text-center", style: { background: "linear-gradient(135deg,#1D4ED8,#2563EB)" } }, React.createElement("h2", { className: "text-3xl sm:text-4xl font-extrabold text-white" }, "Prêt à lancer votre projet ?"), React.createElement("p", { className: "mt-4 text-blue-100 max-w-lg mx-auto" }, "Décrivez votre besoin en quelques minutes."), React.createElement("button", { onClick: () => openOrder(null), className: "mt-7 inline-flex items-center gap-2 rounded-full bg-white text-blue-700 px-7 py-3.5 text-base font-bold hover:bg-blue-50 shadow-lg border-none cursor-pointer" }, React.createElement(CartIcon, { size: 16 }), "Commander un projet"))), React.createElement(SectionContact), React.createElement(SiteFooter), React.createElement(DetailModal, { svc: detailSvc, onClose: () => setDetailSvc(null), onOrder: openOrder }), React.createElement(AuthModal, { open: authOpen, mode: authMode, setMode: setAuthMode, onClose: () => { setAuthOpen(false); setPendingSvc(null); }, onOk: onAuthOk }));
+}
+function AdminApp({ onExit }) {
+    const [logged, setLogged] = React.useState(false);
+    return logged
+        ? React.createElement(AdminShell, { onLogout: () => setLogged(false), onExit })
+        : React.createElement(AdminLogin, { onOk: () => setLogged(true), onExit });
+}
+
+
+      var root = ReactDOM.createRoot(document.getElementById("root"));
+      root.render(React.createElement(DataProvider, null, React.createElement(ClientApp, null)));
+    } catch (err) {
+      console.error("CraftWeb erreur:", err);
+      document.getElementById("root").innerHTML =
+        '<div style="padding:40px;max-width:480px;margin:80px auto;text-align:center;font-family:sans-serif">' +
+        '<div style="font-size:48px">&#9888;&#65039;</div>' +
+        '<h2 style="color:#0F172A;margin:16px 0 8px">Erreur</h2>' +
+        '<p style="color:#64748B;line-height:1.6">' + (err && err.message ? err.message : String(err)) + '</p></div>';
+    }
+  </script>
+</body>
+</html>
